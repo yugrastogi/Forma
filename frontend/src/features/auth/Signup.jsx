@@ -32,7 +32,6 @@ function Signup() {
 
         try {
         await signup(formData);
-        console.log("Signup successful");
         navigate("/");
         } catch (err) {
             setError(

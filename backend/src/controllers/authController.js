@@ -10,7 +10,7 @@ const signup = async (req, res) => {
         if (!result.success) {
             return res.status(400).json({
                 message: "Invalid signup details",
-                errors: result.error.errors.map((issue) => ({
+                errors: result.error.issues.map((issue) => ({
                     field: issue.path.join("."),
                     message: issue.message
                 }))
@@ -118,7 +118,7 @@ const login = async (req, res) => {
         if(!result.success){
             return res.status(400).json({
                 message: "Invalid login details",
-                errors: result.error.errors.map((issue) => ({
+                errors: result.error.issues.map((issue) => ({
                     field: issue.path.join("."),
                     message: issue.message
                 }))
