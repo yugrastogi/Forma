@@ -169,7 +169,7 @@ const login = async (req, res) => {
 
 
 const logout = (req, res) => {
-  res.clearCookie("forma_token", {
+  res.clearCookie("token", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

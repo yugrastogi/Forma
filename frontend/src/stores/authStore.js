@@ -60,7 +60,15 @@ fetchUser: async () => {
             isAuthenticated: true,
     })
     return data
-    }finally{
+    }catch{
+        set({user: null,
+            isAuthenticated: false,
+        });
+
+        return null;
+    }
+
+    finally{
         set({isLoading: false})
     }
 }
