@@ -31,11 +31,9 @@ function Signup() {
         setError("");
 
         try {
-        const data = await signup(formData);
-
-        console.log("Signup successful:", data.user);
+        await signup(formData);
+        console.log("Signup successful");
         navigate("/");
-            // Navigation will be added next.
         } catch (err) {
             setError(
                 err.response?.data?.message || "Unable to create your account."
