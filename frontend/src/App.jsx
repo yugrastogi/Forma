@@ -1,4 +1,3 @@
-
 import { useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./features/home/Home";
@@ -10,27 +9,26 @@ import PublicRoute from "./features/auth/PublicRoute";
 import { useAuthStore } from "./stores/authStore";
 
 function App() {
-  const fetchUser = useAuthStore((state) => state.fetchUser);
+    const fetchUser = useAuthStore((state) => state.fetchUser);
 
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    useEffect(() => {
+        fetchUser();
+    }, [fetchUser]);
 
+    return (
+        <Routes>
+            <Route element={<PublicRoute />}>
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+            </Route>
 
-  return (
-    <Routes>
-      <Route element={<PublicRoute />}>
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
-      </Route>
+            <Route element={<ProtectedRoute />}>
+                <Route path="/" element={<Home />} />
+            </Route>
 
-      <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<Home />} />
-      </Route>
-
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+    );
 }
 
 export default App;
