@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -13,10 +11,37 @@ datasource db {
 }
 
 model User {
+  id         String      @id @default(cuid())
+  name       String
+  email      String      @unique
+  password   String
+  workspaces Workspace[]
+  boards     Board[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model Workspace {
   id        String   @id @default(cuid())
   name      String
-  email     String   @unique
-  password  String
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  boards    Board[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Board {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerId     String
+  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  elements    Json      @default("[]")
+  appState    Json      @default("{}")
+  isFavorite  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
