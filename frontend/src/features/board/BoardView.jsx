@@ -75,6 +75,11 @@ function BoardView() {
     }
   };
 
+  const handleCanvasChange = (updatedElements, updatedAppState) => {
+    setElements(updatedElements);
+    setAppState(updatedAppState);
+  };
+
   if (isLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f7f6f2]">
@@ -201,7 +206,17 @@ function BoardView() {
           className="absolute inset-0 opacity-[0.25] [background-image:linear-gradient(#171716_1px,transparent_1px),linear-gradient(90deg,#171716_1px,transparent_1px)] [background-size:24px_24px]"
         />
         <div className="relative z-10 h-full w-full">
-          <Excalidraw theme="light" />
+          <Excalidraw
+            theme="light"
+            initialData={{
+              elements: elements,
+              appState: {
+                ...appState,
+                collaborators: new Map(),
+              },
+            }}
+            onChange={handleCanvasChange}
+          />
         </div>
       </main>
     </div>
