@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { boardService } from "../../services/boardService";
+import { Excalidraw } from "@excalidraw/excalidraw";
+import "@excalidraw/excalidraw/index.css";
 
 function BoardView() {
   const { id } = useParams();
@@ -198,25 +200,8 @@ function BoardView() {
           aria-hidden="true"
           className="absolute inset-0 opacity-[0.25] [background-image:linear-gradient(#171716_1px,transparent_1px),linear-gradient(90deg,#171716_1px,transparent_1px)] [background-size:24px_24px]"
         />
-
-        <div className="relative flex h-full w-full flex-col items-center justify-center p-6 text-center">
-          <div className="max-w-md w-full rounded-2xl border border-neutral-200 bg-white p-8 shadow-lg">
-            <span className="flex h-12 w-12 mx-auto items-center justify-center rounded-xl bg-neutral-100 text-neutral-500 font-bold text-lg mb-4">
-              □
-            </span>
-            <h3 className="text-base font-bold text-neutral-900">
-              Excalidraw Canvas Container
-            </h3>
-            <p className="mt-2 text-xs text-neutral-500 leading-relaxed">
-              This canvas container is wired to the backend persistence API.
-              The Excalidraw editor will be mounted here by Person 3.
-            </p>
-            <div className="mt-4 flex items-center justify-center gap-4 border-t border-neutral-100 pt-3 text-xs text-neutral-500">
-              <span>Elements: <strong className="text-neutral-900">{elements.length}</strong></span>
-              <span>•</span>
-              <span>Backend Status: <strong className="text-emerald-600">Ready</strong></span>
-            </div>
-          </div>
+        <div className="relative z-10 h-full w-full">
+          <Excalidraw theme="light" />
         </div>
       </main>
     </div>
