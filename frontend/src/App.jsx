@@ -1,3 +1,4 @@
+
 import { useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./features/dashboard/Dashboard";
@@ -9,28 +10,12 @@ import PublicRoute from "./features/auth/PublicRoute";
 import { useAuthStore } from "./stores/authStore";
 
 function App() {
-    const fetchUser = useAuthStore((state) => state.fetchUser);
+  const fetchUser = useAuthStore((state) => state.fetchUser);
 
-    useEffect(() => {
-        fetchUser();
-    }, [fetchUser]);
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
 
-<<<<<<< Updated upstream
-    return (
-        <Routes>
-            <Route element={<PublicRoute />}>
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-            </Route>
-
-            <Route element={<ProtectedRoute />}>
-                <Route path="/" element={<Home />} />
-            </Route>
-
-            <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-    );
-=======
   return (
     <Routes>
       <Route element={<PublicRoute />}>
@@ -46,7 +31,6 @@ function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
->>>>>>> Stashed changes
 }
 
 export default App;
