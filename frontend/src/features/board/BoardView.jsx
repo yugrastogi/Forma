@@ -1,9 +1,25 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef} from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { boardService } from "../../services/boardService";
 import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 
+const normalizeElements = (elements) => {
+  return elements.map((element) => {
+    const normalized = { ...element };
+
+    delete normalized.updated;
+    delete normalized.version;
+    delete normalized.versionNonce;
+
+    normalized.boundElements = normalized.boundElements || [];
+
+    if (element.type === "freedraw") {
+      normalized.lastCommittedPoint = null;
+    }
+    return normalized;
+  });
+};
 function BoardView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -13,11 +29,12 @@ function BoardView() {
   const [appState, setAppState] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("saved");
   const [lastSaved, setLastSaved] = useState(null);
   const [error, setError] = useState(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState("");
-
+  const savedElementsRef = useRef("[]");
   useEffect(() => {
     let isMounted = true;
     const fetchCanvas = async () => {
@@ -26,8 +43,17 @@ function BoardView() {
         if (!isMounted) return;
         setBoard(data);
         setTitleInput(data.title);
-        setElements(Array.isArray(data.elements) ? data.elements : []);
-        setAppState(data.appState && typeof data.appState === "object" ? data.appState : {});
+        const loadedElements = Array.isArray(data.elements) ? data.elements : [];
+
+        setElements(loadedElements);
+        savedElementsRef.current = JSON.stringify(
+          normalizeElements(loadedElements)
+        );
+        setAppState(
+          data.appState && typeof data.appState === "object"
+            ? data.appState
+            : {}
+        );
         setLastSaved(data.updatedAt ? new Date(data.updatedAt) : new Date());
       } catch (err) {
         if (!isMounted) return;
@@ -46,20 +72,26 @@ function BoardView() {
   }, [id]);
 
   const handleSaveCanvas = async () => {
-    setIsSaving(true);
-    try {
-      const result = await boardService.saveBoardCanvas(id, {
-        elements,
-        appState,
-      });
-      setLastSaved(new Date(result.updatedAt || Date.now()));
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to save canvas");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  setIsSaving(true);
+  setSaveStatus("saving");
 
+  try {
+    const result = await boardService.saveBoardCanvas(id, {
+      elements,
+      appState,
+    });
+    savedElementsRef.current = JSON.stringify(
+      normalizeElements(elements)
+    );
+    setLastSaved(new Date(result.updatedAt || Date.now()));
+    setSaveStatus("saved");
+  } catch (err) {
+    setSaveStatus("error");
+    alert(err.response?.data?.message || "Failed to save canvas");
+  } finally {
+    setIsSaving(false);
+  }
+};
   const handleSaveTitle = async () => {
     if (!titleInput.trim() || titleInput === board?.title) {
       setIsEditingTitle(false);
@@ -78,6 +110,15 @@ function BoardView() {
   const handleCanvasChange = (updatedElements, updatedAppState) => {
     setElements(updatedElements);
     setAppState(updatedAppState);
+
+    const currentElements = JSON.stringify(
+      normalizeElements(updatedElements)
+    );
+    if (currentElements === savedElementsRef.current) {
+      setSaveStatus("saved");
+    } else {
+      setSaveStatus("unsaved");
+    }
   };
 
   if (isLoading) {
@@ -183,11 +224,35 @@ function BoardView() {
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <div className="hidden items-center gap-1.5 text-[11px] text-neutral-500 font-medium sm:flex">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            <span>
-              Saved {lastSaved ? lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
-            </span>
-          </div>
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  saveStatus === "saved"
+                    ? "bg-emerald-500"
+                    : saveStatus === "saving"
+                    ? "bg-blue-500"
+                    : saveStatus === "error"
+                    ? "bg-red-500"
+                    : "bg-amber-500"
+                }`}
+              />
+
+              <span>
+                {saveStatus === "saving"
+                  ? "Saving..."
+                  : saveStatus === "unsaved"
+                  ? "Unsaved changes"
+                  : saveStatus === "error"
+                  ? "Save failed"
+                  : `Saved ${
+                      lastSaved
+                        ? lastSaved.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : ""
+                    }`}
+              </span>
+            </div>
 
           <button
             type="button"
