@@ -1,40 +1,21 @@
-import { useState, useEffect, useRef} from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { boardService } from "../../services/boardService";
-import { Excalidraw } from "@excalidraw/excalidraw";
-import "@excalidraw/excalidraw/index.css";
+import CanvasEditor from "../canvas/CanvasEditor";
 
-const normalizeElements = (elements) => {
-  return elements.map((element) => {
-    const normalized = { ...element };
-
-    delete normalized.updated;
-    delete normalized.version;
-    delete normalized.versionNonce;
-
-    normalized.boundElements = normalized.boundElements || [];
-
-    if (element.type === "freedraw") {
-      normalized.lastCommittedPoint = null;
-    }
-    return normalized;
-  });
-};
 function BoardView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const canvasRef = useRef(null);
 
   const [board, setBoard] = useState(null);
-  const [elements, setElements] = useState([]);
-  const [appState, setAppState] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState("saved");
-  const [lastSaved, setLastSaved] = useState(null);
   const [error, setError] = useState(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState("");
-  const savedElementsRef = useRef("[]");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("saved");
+  const [lastSaved, setLastSaved] = useState(null);
   useEffect(() => {
     let isMounted = true;
     const fetchCanvas = async () => {
@@ -43,17 +24,6 @@ function BoardView() {
         if (!isMounted) return;
         setBoard(data);
         setTitleInput(data.title);
-        const loadedElements = Array.isArray(data.elements) ? data.elements : [];
-
-        setElements(loadedElements);
-        savedElementsRef.current = JSON.stringify(
-          normalizeElements(loadedElements)
-        );
-        setAppState(
-          data.appState && typeof data.appState === "object"
-            ? data.appState
-            : {}
-        );
         setLastSaved(data.updatedAt ? new Date(data.updatedAt) : new Date());
       } catch (err) {
         if (!isMounted) return;
@@ -71,27 +41,6 @@ function BoardView() {
     };
   }, [id]);
 
-  const handleSaveCanvas = async () => {
-  setIsSaving(true);
-  setSaveStatus("saving");
-
-  try {
-    const result = await boardService.saveBoardCanvas(id, {
-      elements,
-      appState,
-    });
-    savedElementsRef.current = JSON.stringify(
-      normalizeElements(elements)
-    );
-    setLastSaved(new Date(result.updatedAt || Date.now()));
-    setSaveStatus("saved");
-  } catch (err) {
-    setSaveStatus("error");
-    alert(err.response?.data?.message || "Failed to save canvas");
-  } finally {
-    setIsSaving(false);
-  }
-};
   const handleSaveTitle = async () => {
     if (!titleInput.trim() || titleInput === board?.title) {
       setIsEditingTitle(false);
@@ -104,20 +53,6 @@ function BoardView() {
       setIsEditingTitle(false);
     } catch (err) {
       alert(err.response?.data?.message || "Failed to rename board");
-    }
-  };
-
-  const handleCanvasChange = (updatedElements, updatedAppState) => {
-    setElements(updatedElements);
-    setAppState(updatedAppState);
-
-    const currentElements = JSON.stringify(
-      normalizeElements(updatedElements)
-    );
-    if (currentElements === savedElementsRef.current) {
-      setSaveStatus("saved");
-    } else {
-      setSaveStatus("unsaved");
     }
   };
 
@@ -256,7 +191,7 @@ function BoardView() {
 
           <button
             type="button"
-            onClick={handleSaveCanvas}
+            onClick={() => canvasRef.current?.saveCanvas()}
             disabled={isSaving}
             className="flex items-center gap-1.5 rounded-lg bg-[#171716] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#d9786b] disabled:opacity-60 cursor-pointer"
           >
@@ -271,16 +206,21 @@ function BoardView() {
           className="absolute inset-0 opacity-[0.25] [background-image:linear-gradient(#171716_1px,transparent_1px),linear-gradient(90deg,#171716_1px,transparent_1px)] [background-size:24px_24px]"
         />
         <div className="relative z-10 h-full w-full">
-          <Excalidraw
-            theme="light"
-            initialData={{
-              elements: elements,
-              appState: {
-                ...appState,
-                collaborators: new Map(),
-              },
+          <CanvasEditor
+            key={id}
+            ref={canvasRef}
+            boardId={id}
+            initialElements={Array.isArray(board.elements) ? board.elements : []}
+            initialAppState={
+              board.appState && typeof board.appState === "object"
+                ? board.appState
+                : {}
+            }
+            onSaveStatusChange={({ status, lastSaved, isSaving }) => {
+              setSaveStatus(status);
+              setIsSaving(isSaving);
+              if (lastSaved) setLastSaved(lastSaved);
             }}
-            onChange={handleCanvasChange}
           />
         </div>
       </main>
