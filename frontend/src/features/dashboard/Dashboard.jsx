@@ -309,7 +309,7 @@ function Dashboard() {
             /* No workspace selected */
             <div className="mt-8 flex flex-col items-center justify-center border border-dashed border-neutral-300 bg-white/80 px-6 py-20 text-center">
 
-              <div className="flex h-14 w-14 items-center justify-center bg-[#D9786B] text-xl font-black tracking-tight text-white">
+              <div className="flex h-14 w-14 items-center justify-center bg-[#171716] text-xl font-black tracking-tight text-white">
                 f.
               </div>
 
