@@ -46,6 +46,26 @@ const signup = async (req, res) => {
             }
         })
 
+        try {
+            const pendingInvites = await prisma.boardInvitation.findMany({
+                where: { email: user.email.toLowerCase(), status: "PENDING" }
+            });
+            for (const invite of pendingInvites) {
+                await prisma.boardCollaborator.create({
+                    data: {
+                        boardId: invite.boardId,
+                        userId: user.id,
+                        role: invite.role,
+                    }
+                }).catch(() => {});
+                await prisma.boardInvitation.delete({
+                    where: { id: invite.id }
+                }).catch(() => {});
+            }
+        } catch (inviteError) {
+            console.error("Error migrating pending invites on signup:", inviteError);
+        }
+
         const token = jwt.sign({
             userId: user.id,
         }, process.env.JWT_SECRET, { expiresIn: '7d' });
