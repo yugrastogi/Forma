@@ -10,15 +10,27 @@ datasource db {
   provider = "postgresql"
 }
 
+enum BoardRole {
+  EDITOR
+  VIEWER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 model User {
-  id         String      @id @default(cuid())
-  name       String
-  email      String      @unique
-  password   String
-  workspaces Workspace[]
-  boards     Board[]
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id             String              @id @default(cuid())
+  name           String
+  email          String              @unique
+  password       String
+  workspaces     Workspace[]
+  boards         Board[]
+  collaborations BoardCollaborator[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 }
 
 model Workspace {
@@ -32,16 +44,44 @@ model Workspace {
 }
 
 model Board {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  ownerId     String
-  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  elements    Json      @default("[]")
-  appState    Json      @default("{}")
-  isFavorite  Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String              @id @default(cuid())
+  title         String
+  description   String?
+  workspaceId   String
+  workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerId       String
+  owner         User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  elements      Json                @default("[]")
+  appState      Json                @default("{}")
+  isFavorite    Boolean             @default(false)
+  collaborators BoardCollaborator[]
+  invitations   BoardInvitation[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+model BoardCollaborator {
+  id        String    @id @default(cuid())
+  boardId   String
+  board     Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      BoardRole @default(EDITOR)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([boardId, userId])
+}
+
+model BoardInvitation {
+  id        String           @id @default(cuid())
+  boardId   String
+  board     Board            @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  email     String
+  role      BoardRole        @default(EDITOR)
+  status    InvitationStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([boardId, email])
 }

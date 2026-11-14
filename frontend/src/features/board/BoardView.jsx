@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { boardService } from "../../services/boardService";
 import CanvasEditor from "../canvas/CanvasEditor";
+import ShareDialog from "../collaboration/components/ShareDialog";
 
 function BoardView() {
   const { id } = useParams();
@@ -16,6 +17,17 @@ function BoardView() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState("saved");
   const [lastSaved, setLastSaved] = useState(null);
+
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [collabState, setCollabState] = useState({
+    connectionStatus: "connecting",
+    activeUsers: [],
+    errorMessage: "",
+  });
+
+  const isOwner = board?.userRole === "OWNER";
+  const isViewer = board?.userRole === "VIEWER";
+
   useEffect(() => {
     let isMounted = true;
     const fetchCanvas = async () => {
@@ -40,6 +52,10 @@ function BoardView() {
       isMounted = false;
     };
   }, [id]);
+
+  const handleCollaborationChange = useCallback((info) => {
+    setCollabState(info);
+  }, []);
 
   const handleSaveTitle = async () => {
     if (!titleInput.trim() || titleInput === board?.title) {
@@ -84,7 +100,7 @@ function BoardView() {
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="mt-5 rounded-xl bg-[#171716] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#d9786b]"
+            className="mt-5 rounded-xl bg-[#171716] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#d9786b] cursor-pointer"
           >
             Return to Dashboard
           </button>
@@ -95,7 +111,7 @@ function BoardView() {
 
   return (
     <div className="flex h-screen flex-col bg-[#f7f6f2] text-[#171716]">
-      <header className="z-20 flex h-14 shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-4 shadow-2xs">
+      <header className="z-20 flex h-14 shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-4 shadow-2xs gap-3">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <Link
             to="/"
@@ -119,46 +135,121 @@ function BoardView() {
             </>
           )}
 
-          {isEditingTitle ? (
-            <div className="flex items-center gap-1">
-              <input
-                type="text"
-                value={titleInput}
-                onChange={(e) => setTitleInput(e.target.value)}
-                onBlur={handleSaveTitle}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSaveTitle();
-                  if (e.key === "Escape") {
-                    setTitleInput(board.title);
-                    setIsEditingTitle(false);
-                  }
-                }}
-                autoFocus
-                className="rounded-md border border-neutral-900 px-2 py-0.5 text-xs sm:text-sm font-bold text-neutral-950 outline-none"
-              />
+          {isOwner ? (
+            isEditingTitle ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={titleInput}
+                  onChange={(e) => setTitleInput(e.target.value)}
+                  onBlur={handleSaveTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveTitle();
+                    if (e.key === "Escape") {
+                      setTitleInput(board.title);
+                      setIsEditingTitle(false);
+                    }
+                  }}
+                  autoFocus
+                  className="rounded-md border border-neutral-900 px-2 py-0.5 text-xs sm:text-sm font-bold text-neutral-950 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveTitle}
+                  className="rounded-md bg-[#171716] px-2 py-0.5 text-xs text-white cursor-pointer"
+                >
+                  Save
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={handleSaveTitle}
-                className="rounded-md bg-[#171716] px-2 py-0.5 text-xs text-white"
+                onClick={() => setIsEditingTitle(true)}
+                className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs sm:text-sm font-bold text-neutral-950 hover:bg-neutral-100 transition-colors truncate cursor-pointer"
+                title="Click to rename board"
               >
-                Save
+                <span className="truncate">{board.title}</span>
+                <span className="text-xs text-neutral-400">✎</span>
               </button>
-            </div>
+            )
           ) : (
-            <button
-              type="button"
-              onClick={() => setIsEditingTitle(true)}
-              className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs sm:text-sm font-bold text-neutral-950 hover:bg-neutral-100 transition-colors truncate"
-              title="Click to rename board"
-            >
-              <span className="truncate">{board.title}</span>
-              <span className="text-xs text-neutral-400">✎</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm font-bold text-neutral-950 truncate">
+                {board.title}
+              </span>
+              <span
+                className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
+                  isViewer
+                    ? "bg-neutral-100 text-neutral-600"
+                    : "bg-orange-100 text-orange-800"
+                }`}
+              >
+                {board.userRole}
+              </span>
+            </div>
           )}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <div className="hidden items-center gap-1.5 text-[11px] text-neutral-500 font-medium sm:flex">
+          {/* Connection Status indicator */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-neutral-50 border border-neutral-200 text-[11px] font-medium text-neutral-600">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                collabState.connectionStatus === "connected"
+                  ? "bg-emerald-500 animate-pulse"
+                  : collabState.connectionStatus === "reconnecting" ||
+                    collabState.connectionStatus === "connecting"
+                  ? "bg-amber-500 animate-pulse"
+                  : "bg-neutral-400"
+              }`}
+            />
+            <span className="hidden md:inline">
+              {collabState.connectionStatus === "connected"
+                ? "Live"
+                : collabState.connectionStatus === "reconnecting"
+                ? "Reconnecting..."
+                : collabState.connectionStatus === "connecting"
+                ? "Connecting..."
+                : "Offline"}
+            </span>
+          </div>
+
+          {/* Active Presence Users stack */}
+          {collabState.activeUsers.length > 0 && (
+            <div className="flex items-center -space-x-1.5 overflow-hidden">
+              {collabState.activeUsers.slice(0, 4).map((u) => (
+                <div
+                  key={u.userId}
+                  title={`${u.name} (${u.role || "collaborator"})`}
+                  style={{ backgroundColor: u.color || "#3b82f6" }}
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ring-white shadow-xs"
+                >
+                  {u.name?.charAt(0).toUpperCase() || "U"}
+                </div>
+              ))}
+              {collabState.activeUsers.length > 4 && (
+                <div
+                  title={`${collabState.activeUsers.length - 4} more online`}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-200 text-[10px] font-semibold text-neutral-700 ring-2 ring-white"
+                >
+                  +{collabState.activeUsers.length - 4}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Share Button */}
+          <button
+            type="button"
+            onClick={() => setIsShareOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 shadow-2xs hover:bg-neutral-50 cursor-pointer"
+          >
+            <span>Share</span>
+          </button>
+
+          {/* Canvas Save Status (hidden for viewers) */}
+          {!isViewer && (
+            <div className="hidden items-center gap-1.5 text-[11px] text-neutral-500 font-medium sm:flex">
               <span
                 className={`h-2 w-2 rounded-full ${
                   saveStatus === "saved"
@@ -170,7 +261,6 @@ function BoardView() {
                     : "bg-amber-500"
                 }`}
               />
-
               <span>
                 {saveStatus === "saving"
                   ? "Saving..."
@@ -188,15 +278,23 @@ function BoardView() {
                     }`}
               </span>
             </div>
+          )}
 
-          <button
-            type="button"
-            onClick={() => canvasRef.current?.saveCanvas()}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 rounded-lg bg-[#171716] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#d9786b] disabled:opacity-60 cursor-pointer"
-          >
-            {isSaving ? "Saving..." : "Save Canvas"}
-          </button>
+          {/* Save Canvas Button */}
+          {!isViewer ? (
+            <button
+              type="button"
+              onClick={() => canvasRef.current?.saveCanvas()}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 rounded-lg bg-[#171716] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#d9786b] disabled:opacity-60 cursor-pointer"
+            >
+              {isSaving ? "Saving..." : "Save Canvas"}
+            </button>
+          ) : (
+            <span className="rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-600">
+              Read Only
+            </span>
+          )}
         </div>
       </header>
 
@@ -216,6 +314,8 @@ function BoardView() {
                 ? board.appState
                 : {}
             }
+            userRole={board.userRole || "VIEWER"}
+            onCollaborationChange={handleCollaborationChange}
             onSaveStatusChange={({ status, lastSaved, isSaving }) => {
               setSaveStatus(status);
               setIsSaving(isSaving);
@@ -224,6 +324,15 @@ function BoardView() {
           />
         </div>
       </main>
+
+      {/* Share Dialog Modal */}
+      {isShareOpen && (
+        <ShareDialog
+          boardId={id}
+          userRole={board.userRole || "VIEWER"}
+          onClose={() => setIsShareOpen(false)}
+        />
+      )}
     </div>
   );
 }
