@@ -283,7 +283,7 @@ function BoardView() {
             <button
               type="button"
               onClick={() => setIsShareOpen(true)}
-              className="border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 transition-colors hover:border-neutral-300 hover:bg-[#FBECE9] hover:text-[#AD5146]"
+              className="border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 transition-colors hover:border-[#D9786B] hover:text-[#D9786B]"
             >
               Share
             </button>
