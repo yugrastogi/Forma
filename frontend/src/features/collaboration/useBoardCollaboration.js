@@ -19,11 +19,9 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
     onRemoteSceneUpdateRef.current = onRemoteSceneUpdate;
   });
 
-  // Initialize and connect socket
   useEffect(() => {
     if (!boardId || !user) return;
 
-    // Connect to the same origin (handled by Vite proxy in dev)
     const socket = io(window.location.origin, {
       path: "/socket.io",
       withCredentials: true,
@@ -38,7 +36,6 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
     socket.on("connect", () => {
       setConnectionStatus("connected");
       setErrorMessage("");
-      // Join the board room
       socket.emit("join-board", { boardId });
     });
 
@@ -73,7 +70,6 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
       if (data.boardId === boardId && data.users) {
         setActiveUsers(data.users);
 
-        // Clean up cursors of users who left
         const currentActiveIds = new Set(data.users.map((u) => u.userId));
         let changed = false;
         for (const uid of collaboratorsMapRef.current.keys()) {
@@ -90,7 +86,6 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
       }
     });
 
-    // Remote cursor updates
     socket.on("cursor-update", (data) => {
       if (!excalidrawAPI || data.userId === user?.id) return;
 
@@ -113,7 +108,6 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
       });
     });
 
-    // Remote canvas scene updates
     socket.on("canvas-update", (data) => {
       if (data.userId === user?.id || !data.elements) return;
 
@@ -133,7 +127,6 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
     };
   }, [boardId, user, excalidrawAPI]);
 
-  // Broadcast cursor movements (throttled to ~30ms)
   const broadcastCursor = useCallback(
     (x, y, button = "up") => {
       const socket = socketRef.current;
@@ -153,16 +146,13 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
     [boardId]
   );
 
-  // Broadcast canvas scene changes (throttled with trailing edge)
   const broadcastCanvasChange = useCallback(
     (elements, appState) => {
       const socket = socketRef.current;
       if (!socket || !socket.connected) return;
 
-      // Viewers cannot broadcast edits
       if (userRole === "VIEWER") return;
 
-      // Ignore changes triggered by remote incoming updates
       if (isRemoteUpdateRef.current) {
         isRemoteUpdateRef.current = false;
         return;
