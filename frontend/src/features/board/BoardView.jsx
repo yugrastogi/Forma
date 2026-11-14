@@ -191,7 +191,6 @@ function BoardView() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* Connection Status indicator */}
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-neutral-50 border border-neutral-200 text-[11px] font-medium text-neutral-600">
             <span
               className={`h-2 w-2 rounded-full ${
@@ -214,7 +213,6 @@ function BoardView() {
             </span>
           </div>
 
-          {/* Active Presence Users stack */}
           {collabState.activeUsers.length > 0 && (
             <div className="flex items-center -space-x-1.5 overflow-hidden">
               {collabState.activeUsers.slice(0, 4).map((u) => (
@@ -238,7 +236,6 @@ function BoardView() {
             </div>
           )}
 
-          {/* Share Button */}
           <button
             type="button"
             onClick={() => setIsShareOpen(true)}
@@ -247,7 +244,6 @@ function BoardView() {
             <span>Share</span>
           </button>
 
-          {/* Canvas Save Status (hidden for viewers) */}
           {!isViewer && (
             <div className="hidden items-center gap-1.5 text-[11px] text-neutral-500 font-medium sm:flex">
               <span
@@ -280,7 +276,6 @@ function BoardView() {
             </div>
           )}
 
-          {/* Save Canvas Button */}
           {!isViewer ? (
             <button
               type="button"
@@ -325,7 +320,6 @@ function BoardView() {
         </div>
       </main>
 
-      {/* Share Dialog Modal */}
       {isShareOpen && (
         <ShareDialog
           boardId={id}

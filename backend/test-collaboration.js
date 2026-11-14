@@ -11,7 +11,6 @@ const prisma = require("./src/config/prisma");
 async function runTests() {
   console.log("=== STARTING FORMA COLLABORATION & SHARING TESTS ===");
 
-  // 1. Start test server on random port
   const server = http.createServer(app);
   initSocket(server);
 
@@ -21,7 +20,6 @@ async function runTests() {
   console.log(`Test server running at ${baseUrl}`);
 
   try {
-    // 2. Setup test users and board
     const timestamp = Date.now();
     const ownerEmail = `owner_${timestamp}@example.com`;
     const editorEmail = `editor_${timestamp}@example.com`;
@@ -61,7 +59,6 @@ async function runTests() {
 
     console.log("✓ Test users and board created");
 
-    // Helper for fetch with cookies
     async function apiRequest(path, method = "GET", body = null, token = ownerToken) {
       const headers = {
         "Content-Type": "application/json",
@@ -76,7 +73,6 @@ async function runTests() {
       return { status: res.status, data };
     }
 
-    // TEST 1: Owner invites Editor
     console.log("\n[TEST 1] Owner invites user as EDITOR...");
     const inviteRes = await apiRequest(`/api/boards/${board.id}/collaborators`, "POST", {
       email: editorEmail,
@@ -85,7 +81,6 @@ async function runTests() {
     if (inviteRes.status !== 201) throw new Error(`Invite failed: ${JSON.stringify(inviteRes.data)}`);
     console.log("✓ Editor invited successfully");
 
-    // TEST 2: Owner invites Viewer
     console.log("\n[TEST 2] Owner invites user as VIEWER...");
     const inviteViewerRes = await apiRequest(`/api/boards/${board.id}/collaborators`, "POST", {
       email: viewerEmail,
@@ -94,7 +89,6 @@ async function runTests() {
     if (inviteViewerRes.status !== 201) throw new Error(`Invite viewer failed: ${JSON.stringify(inviteViewerRes.data)}`);
     console.log("✓ Viewer invited successfully");
 
-    // TEST 3: Prevent duplicate invitation
     console.log("\n[TEST 3] Prevent duplicate invitations...");
     const dupRes = await apiRequest(`/api/boards/${board.id}/collaborators`, "POST", {
       email: editorEmail,
@@ -103,7 +97,6 @@ async function runTests() {
     if (dupRes.status !== 400) throw new Error("Expected 400 for duplicate invite");
     console.log("✓ Duplicate invitation rejected correctly");
 
-    // TEST 4: Non-owner cannot invite
     console.log("\n[TEST 4] Editor cannot invite other users...");
     const nonOwnerInvite = await apiRequest(`/api/boards/${board.id}/collaborators`, "POST", {
       email: strangerEmail,
@@ -112,14 +105,12 @@ async function runTests() {
     if (nonOwnerInvite.status !== 403) throw new Error("Expected 403 for non-owner invite");
     console.log("✓ Non-owner invite rejected with 403 Forbidden");
 
-    // TEST 5: Collaborator list
     console.log("\n[TEST 5] Fetch collaborator list...");
     const collabListRes = await apiRequest(`/api/boards/${board.id}/collaborators`, "GET", null, ownerToken);
     if (collabListRes.status !== 200) throw new Error("Failed to fetch collaborators");
     if (collabListRes.data.collaborators.length !== 2) throw new Error("Expected 2 collaborators");
     console.log(`✓ Collaborators fetched: ${collabListRes.data.collaborators.map(c => c.name + " (" + c.role + ")").join(", ")}`);
 
-    // TEST 6: Change collaborator role
     console.log("\n[TEST 6] Change collaborator role...");
     const editorCollab = collabListRes.data.collaborators.find(c => c.email === editorEmail);
     const updateRoleRes = await apiRequest(
@@ -131,35 +122,28 @@ async function runTests() {
     if (updateRoleRes.status !== 200 || updateRoleRes.data.collaborator.role !== "VIEWER") {
       throw new Error("Failed to update collaborator role");
     }
-    // Switch back to EDITOR
     await apiRequest(`/api/boards/${board.id}/collaborators/${editorCollab.id}`, "PATCH", { role: "EDITOR" }, ownerToken);
     console.log("✓ Collaborator role updated successfully");
 
-    // TEST 7: Canvas editing permissions (Owner and Editor allowed, Viewer forbidden)
     console.log("\n[TEST 7] Canvas editing permissions...");
-    // Editor can save canvas
     const editorSave = await apiRequest(`/api/boards/${board.id}/canvas`, "PUT", {
       elements: [{ id: "elem-editor", type: "line" }],
     }, editorToken);
     if (editorSave.status !== 200) throw new Error("Editor should be able to save canvas");
     console.log("✓ Editor successfully saved canvas");
 
-    // Viewer cannot save canvas
     const viewerSave = await apiRequest(`/api/boards/${board.id}/canvas`, "PUT", {
       elements: [{ id: "elem-viewer", type: "line" }],
     }, viewerToken);
     if (viewerSave.status !== 403) throw new Error("Viewer saving canvas should be rejected with 403");
     console.log("✓ Viewer save canvas correctly rejected with 403 Forbidden");
 
-    // Stranger cannot access canvas
     const strangerGet = await apiRequest(`/api/boards/${board.id}/canvas`, "GET", null, strangerToken);
     if (strangerGet.status !== 404) throw new Error("Unauthorized user should get 404");
     console.log("✓ Stranger access to board correctly rejected");
 
-    // TEST 8: Socket.IO Authentication & Room Authorization
     console.log("\n[TEST 8] Socket.IO authentication and board room access...");
 
-    // Helper to connect socket client
     function connectSocket(token) {
       return ioClient(baseUrl, {
         path: "/socket.io",
@@ -171,7 +155,6 @@ async function runTests() {
       });
     }
 
-    // Connect unauthenticated socket -> should fail
     const unauthSocket = ioClient(baseUrl, {
       path: "/socket.io",
       transports: ["websocket"],
@@ -186,7 +169,6 @@ async function runTests() {
     if (!unauthError) throw new Error("Unauthenticated socket should not connect");
     console.log(`✓ Unauthenticated socket rejected: "${unauthError}"`);
 
-    // Connect owner socket and editor socket
     const socketOwner = connectSocket(ownerToken);
     const socketEditor = connectSocket(editorToken);
     const socketViewer = connectSocket(viewerToken);
@@ -198,7 +180,6 @@ async function runTests() {
     ]);
     console.log("✓ Owner, Editor, and Viewer sockets connected successfully");
 
-    // TEST 9: Stranger socket joining private board -> rejected
     console.log("\n[TEST 9] Unauthorized socket joining private board room...");
     const socketStranger = connectSocket(strangerToken);
     await new Promise((resolve) => socketStranger.on("connect", resolve));
@@ -213,7 +194,6 @@ async function runTests() {
     }
     console.log(`✓ Stranger room join rejected: "${strangerBoardError}"`);
 
-    // TEST 10: Online Presence - Owner and Editor join board
     console.log("\n[TEST 10] Online Presence broadcast when users join...");
     const presencePromise = new Promise((resolve) => {
       socketOwner.on("presence-update", (data) => {
@@ -230,7 +210,6 @@ async function runTests() {
     if (activeUsers.length !== 2) throw new Error("Expected 2 online users");
     console.log(`✓ Online presence broadcast working. Active users: ${activeUsers.map(u => u.name).join(", ")}`);
 
-    // TEST 11: Real-time Live Cursors
     console.log("\n[TEST 11] Real-time Cursor Sharing...");
     const cursorPromise = new Promise((resolve) => {
       socketEditor.on("cursor-update", (data) => {
@@ -251,7 +230,6 @@ async function runTests() {
     }
     console.log(`✓ Cursor moved from Owner received on Editor: (${receivedCursor.x}, ${receivedCursor.y}) by ${receivedCursor.userName}`);
 
-    // TEST 12: Real-time Canvas Synchronization
     console.log("\n[TEST 12] Real-time Canvas Scene Synchronization...");
     const canvasPromise = new Promise((resolve) => {
       socketOwner.on("canvas-update", (data) => {
@@ -275,7 +253,6 @@ async function runTests() {
     }
     console.log("✓ Canvas change broadcast from Editor received on Owner in real-time");
 
-    // TEST 13: Viewer cannot broadcast canvas change
     console.log("\n[TEST 13] Viewer restricted from broadcasting canvas updates...");
     socketViewer.emit("join-board", { boardId: board.id });
     await new Promise((r) => setTimeout(r, 100));
@@ -295,7 +272,6 @@ async function runTests() {
     }
     console.log(`✓ Viewer canvas change rejected: "${viewerError}"`);
 
-    // TEST 14: Disconnect presence cleanup
     console.log("\n[TEST 14] Disconnect and presence cleanup...");
     const disconnectPresencePromise = new Promise((resolve) => {
       socketOwner.on("presence-update", (data) => {
@@ -316,7 +292,6 @@ async function runTests() {
 
     socketOwner.disconnect();
 
-    // Clean up test data from DB
     await prisma.boardCollaborator.deleteMany({ where: { boardId: board.id } });
     await prisma.board.delete({ where: { id: board.id } });
     await prisma.workspace.delete({ where: { id: workspace.id } });
