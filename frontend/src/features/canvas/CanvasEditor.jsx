@@ -60,7 +60,6 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     setElements(updatedElements);
     setAppState(updatedAppState);
 
-    // Broadcast change to other collaborators
     broadcastCanvasChange(updatedElements, updatedAppState);
 
     const currentElements = JSON.stringify(

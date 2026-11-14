@@ -4,14 +4,14 @@ const prisma = require("./config/prisma");
 const { getBoardAccess } = require("./controllers/boardController");
 
 const USER_COLORS = [
-  "#ef4444", // red
-  "#f97316", // orange
-  "#f59e0b", // amber
-  "#10b981", // emerald
-  "#06b6d4", // cyan
-  "#3b82f6", // blue
-  "#8b5cf6", // violet
-  "#ec4899", // pink
+  "#ef4444",
+  "#f97316",
+  "#f59e0b",
+  "#10b981",
+  "#06b6d4",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
 ];
 
 function getUserColor(userId) {
@@ -42,13 +42,11 @@ function parseCookies(cookieHeader) {
   return cookies;
 }
 
-// In-memory presence map: boardId -> Map(socketId -> UserInfo)
 const activePresence = new Map();
 
 function getBoardPresence(boardId) {
   const map = activePresence.get(boardId);
   if (!map) return [];
-  // Deduplicate by userId so multiple tabs from the same user show as one presence entry with multiple connections
   const userMap = new Map();
   for (const user of map.values()) {
     if (!userMap.has(user.userId)) {
@@ -74,7 +72,6 @@ function initSocket(httpServer) {
     pingInterval: 10000,
   });
 
-  // Authentication middleware
   io.use(async (socket, next) => {
     try {
       const cookies = parseCookies(socket.handshake.headers.cookie);
@@ -103,7 +100,6 @@ function initSocket(httpServer) {
   });
 
   io.on("connection", (socket) => {
-    // Join a specific board room
     socket.on("join-board", async ({ boardId }) => {
       try {
         if (!boardId || typeof boardId !== "string") {
@@ -134,7 +130,6 @@ function initSocket(httpServer) {
           color: socket.color,
         });
 
-        // Broadcast updated presence list
         const presenceList = getBoardPresence(boardId);
         io.to(`board:${boardId}`).emit("presence-update", {
           boardId,
@@ -152,7 +147,6 @@ function initSocket(httpServer) {
       }
     });
 
-    // Cursor position updates
     socket.on("cursor-move", ({ boardId, x, y, pointer }) => {
       if (!socket.currentBoardId || socket.currentBoardId !== boardId) {
         return;
@@ -168,13 +162,11 @@ function initSocket(httpServer) {
       });
     });
 
-    // Canvas scene updates
     socket.on("canvas-change", ({ boardId, elements, appState }) => {
       if (!socket.currentBoardId || socket.currentBoardId !== boardId) {
         return;
       }
 
-      // Viewers cannot modify the canvas
       if (socket.userRole === "VIEWER") {
         socket.emit("board-error", {
           message: "Viewers are not permitted to edit this canvas",
@@ -190,7 +182,6 @@ function initSocket(httpServer) {
       });
     });
 
-    // Explicit leave board
     socket.on("leave-board", ({ boardId }) => {
       const bId = boardId || socket.currentBoardId;
       if (bId && activePresence.has(bId)) {
@@ -209,7 +200,6 @@ function initSocket(httpServer) {
       socket.currentBoardId = null;
     });
 
-    // Disconnect cleanup
     socket.on("disconnect", () => {
       const bId = socket.currentBoardId;
       if (bId && activePresence.has(bId)) {
