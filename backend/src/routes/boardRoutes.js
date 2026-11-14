@@ -8,6 +8,11 @@ const {
   deleteBoard,
   getBoardCanvas,
   saveBoardCanvas,
+  getBoardCollaborators,
+  inviteCollaborator,
+  updateCollaboratorRole,
+  removeCollaborator,
+  cancelInvitation,
 } = require("../controllers/boardController");
 
 const router = express.Router();
@@ -22,5 +27,11 @@ router.delete("/:id", deleteBoard);
 
 router.get("/:id/canvas", getBoardCanvas);
 router.put("/:id/canvas", saveBoardCanvas);
+
+router.get("/:id/collaborators", getBoardCollaborators);
+router.post("/:id/collaborators", inviteCollaborator);
+router.patch("/:id/collaborators/:collaboratorId", updateCollaboratorRole);
+router.delete("/:id/collaborators/:collaboratorId", removeCollaborator);
+router.delete("/:id/invitations/:invitationId", cancelInvitation);
 
 module.exports = router;

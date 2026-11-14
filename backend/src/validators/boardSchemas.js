@@ -16,9 +16,19 @@ const saveCanvasSchema = z.object({
   appState: z.record(z.string(), z.any()).optional().default({}),
 });
 
+const inviteCollaboratorSchema = z.object({
+  email: z.string().trim().email("Please enter a valid email address"),
+  role: z.enum(["EDITOR", "VIEWER"]).default("EDITOR"),
+});
+
+const updateCollaboratorRoleSchema = z.object({
+  role: z.enum(["EDITOR", "VIEWER"]),
+});
+
 module.exports = {
   createBoardSchema,
   updateBoardSchema,
   saveCanvasSchema,
+  inviteCollaboratorSchema,
+  updateCollaboratorRoleSchema,
 };
-

@@ -40,5 +40,29 @@ export const boardService = {
     const response = await api.put(`/api/boards/${id}/canvas`, data);
     return response.data;
   },
-};
 
+  getBoardCollaborators: async (id) => {
+    const response = await api.get(`/api/boards/${id}/collaborators`);
+    return response.data;
+  },
+
+  inviteCollaborator: async (id, data) => {
+    const response = await api.post(`/api/boards/${id}/collaborators`, data);
+    return response.data;
+  },
+
+  updateCollaboratorRole: async (id, collaboratorId, role) => {
+    const response = await api.patch(`/api/boards/${id}/collaborators/${collaboratorId}`, { role });
+    return response.data;
+  },
+
+  removeCollaborator: async (id, collaboratorId) => {
+    const response = await api.delete(`/api/boards/${id}/collaborators/${collaboratorId}`);
+    return response.data;
+  },
+
+  cancelInvitation: async (id, invitationId) => {
+    const response = await api.delete(`/api/boards/${id}/invitations/${invitationId}`);
+    return response.data;
+  },
+};

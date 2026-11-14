@@ -101,47 +101,53 @@ function BoardCard({
           </div>
         </div>
 
-        <div className="relative">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsMenuOpen(!isMenuOpen);
-            }}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900"
-          >
-            ⋯
-          </button>
-
-          {isMenuOpen && (
-            <div
-              ref={menuRef}
-              onClick={(e) => e.stopPropagation()}
-              className="absolute right-0 top-8 z-40 w-32 rounded-xl border border-neutral-200 bg-white py-1 shadow-lg"
+        {board.role && board.role !== "OWNER" ? (
+          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-neutral-100 text-neutral-600">
+            {board.role}
+          </span>
+        ) : (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMenuOpen(!isMenuOpen);
+              }}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900"
             >
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  onOpenRenameBoard(board);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-50"
+              ⋯
+            </button>
+
+            {isMenuOpen && (
+              <div
+                ref={menuRef}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-8 z-40 w-32 rounded-xl border border-neutral-200 bg-white py-1 shadow-lg"
               >
-                Rename
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  onOpenDeleteBoard(board);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
-              >
-                Delete
-              </button>
-            </div>
-          )}
-        </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onOpenRenameBoard(board);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-50"
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onOpenDeleteBoard(board);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
