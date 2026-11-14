@@ -1,7 +1,18 @@
+
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const prisma = require("../config/prisma")
+const prisma = require("../config/prisma");
 const { signupSchema, loginSchema } = require("../validators/authSchemas");
+
+const isProduction = process.env.NODE_ENV === "production";
+
+const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: "/",
+};
 
 const signup = async (req, res) => {
     try {
@@ -14,9 +25,8 @@ const signup = async (req, res) => {
                     field: issue.path.join("."),
                     message: issue.message
                 }))
-            })
+            });
         }
-
 
         const { name, email, password } = result.data;
 
@@ -27,7 +37,7 @@ const signup = async (req, res) => {
         if (existingUser) {
             return res.status(400).json({
                 message: "User with this email already exists"
-            })
+            });
         }
 
         const hashedPassword = await bcrypt.hash(password, 12);
@@ -44,12 +54,16 @@ const signup = async (req, res) => {
                 email: true,
                 createdAt: true,
             }
-        })
+        });
 
         try {
             const pendingInvites = await prisma.boardInvitation.findMany({
-                where: { email: user.email.toLowerCase(), status: "PENDING" }
+                where: {
+                    email: user.email.toLowerCase(),
+                    status: "PENDING"
+                }
             });
+
             for (const invite of pendingInvites) {
                 await prisma.boardCollaborator.create({
                     data: {
@@ -58,48 +72,47 @@ const signup = async (req, res) => {
                         role: invite.role,
                     }
                 }).catch(() => {});
+
                 await prisma.boardInvitation.delete({
                     where: { id: invite.id }
                 }).catch(() => {});
             }
         } catch (inviteError) {
-            console.error("Error migrating pending invites on signup:", inviteError);
+            console.error(
+                "Error migrating pending invites on signup:",
+                inviteError
+            );
         }
 
-        const token = jwt.sign({
-            userId: user.id,
-        }, process.env.JWT_SECRET, { expiresIn: '7d' });
+        const token = jwt.sign(
+            { userId: user.id },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
 
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 24 * 60 * 60 * 1000 * 7,
-            path: "/",
-        })
+        res.cookie("token", token, cookieOptions);
 
         return res.status(201).json({
             message: "Account created successfully",
             user
-        })
-    }
-    catch(error){
+        });
+    } catch (error) {
         if (error.code === 'P2002') {
             return res.status(400).json({
                 message: "User with this email already exists"
-            })
+            });
         }
 
         console.error("Signup error:", error);
 
         return res.status(500).json({
             message: "Something went wrong while creating the account",
-        })
+        });
     }
-}
+};
 
 const me = async (req, res) => {
-    try{
+    try {
         const user = await prisma.user.findUnique({
             where: { id: req.user.userId },
             select: {
@@ -110,39 +123,36 @@ const me = async (req, res) => {
             }
         });
 
-        if(!user){
+        if (!user) {
             return res.status(404).json({
                 message: "User not found"
-            })
+            });
         }
 
         return res.status(200).json({
             user
-        })
-
-    }
-    catch(error){
+        });
+    } catch (error) {
         console.error("Fetch user error:", error);
 
         return res.status(500).json({
             message: "Something went wrong while fetching the user",
-        })
+        });
     }
-}
-
+};
 
 const login = async (req, res) => {
-    try{
+    try {
         const result = loginSchema.safeParse(req.body);
 
-        if(!result.success){
+        if (!result.success) {
             return res.status(400).json({
                 message: "Invalid login details",
                 errors: result.error.issues.map((issue) => ({
                     field: issue.path.join("."),
                     message: issue.message
                 }))
-            })
+            });
         }
 
         const { email, password } = result.data;
@@ -151,23 +161,19 @@ const login = async (req, res) => {
             where: { email }
         });
 
-        if(!user || !(await bcrypt.compare(password, user.password))){
+        if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(400).json({
                 message: "Invalid login details"
-            })
+            });
         }
-        
-        const token = jwt.sign({
-            userId: user.id,
-        }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 24 * 60 * 60 * 1000 * 7,
-            path: "/",  
-        })
+        const token = jwt.sign(
+            { userId: user.id },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.cookie("token", token, cookieOptions);
 
         return res.status(200).json({
             message: "Logged in successfully",
@@ -176,31 +182,28 @@ const login = async (req, res) => {
                 name: user.name,
                 email: user.email,
             }
-        })
-    }
-    catch(error){
+        });
+    } catch (error) {
         console.error("Login error:", error);
 
         return res.status(500).json({
             message: "Something went wrong while logging in",
-        })
+        });
     }
-}
-
-
-const logout = (req, res) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-  });
-
-  return res.status(200).json({
-    message: "Logged out successfully",
-  });
 };
 
+const logout = (req, res) => {
+    res.clearCookie("token", {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
+        path: "/",
+    });
+
+    return res.status(200).json({
+        message: "Logged out successfully",
+    });
+};
 
 module.exports = {
     signup,
@@ -208,5 +211,3 @@ module.exports = {
     me,
     logout
 };
-
-
