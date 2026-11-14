@@ -22,7 +22,7 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
   useEffect(() => {
     if (!boardId || !user) return;
 
-    const socket = io(window.location.origin, {
+    const socket = io(import.meta.env.VITE_SOCKET_URL || window.location.origin, {
       path: "/socket.io",
       withCredentials: true,
       transports: ["websocket", "polling"],
