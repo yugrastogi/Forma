@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { boardService } from "../../services/boardService";
@@ -30,16 +31,24 @@ function BoardView() {
 
   useEffect(() => {
     let isMounted = true;
+
     const fetchCanvas = async () => {
       try {
         const data = await boardService.getBoardCanvas(id);
+
         if (!isMounted) return;
+
         setBoard(data);
         setTitleInput(data.title);
-        setLastSaved(data.updatedAt ? new Date(data.updatedAt) : new Date());
+        setLastSaved(
+          data.updatedAt ? new Date(data.updatedAt) : new Date()
+        );
       } catch (err) {
         if (!isMounted) return;
-        setError(err.response?.data?.message || "Failed to load board");
+
+        setError(
+          err.response?.data?.message || "Failed to load board"
+        );
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -48,6 +57,7 @@ function BoardView() {
     };
 
     fetchCanvas();
+
     return () => {
       isMounted = false;
     };
@@ -64,22 +74,44 @@ function BoardView() {
     }
 
     try {
-      const result = await boardService.updateBoard(id, { title: titleInput.trim() });
-      setBoard((prev) => ({ ...prev, title: result.board.title }));
+      const result = await boardService.updateBoard(id, {
+        title: titleInput.trim(),
+      });
+
+      setBoard((prev) => ({
+        ...prev,
+        title: result.board.title,
+      }));
+
       setIsEditingTitle(false);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to rename board");
+      alert(
+        err.response?.data?.message || "Failed to rename board"
+      );
     }
+  };
+
+  const formatLastSaved = () => {
+    if (saveStatus === "saving") return "Saving...";
+    if (saveStatus === "unsaved") return "Unsaved changes";
+    if (saveStatus === "error") return "Save failed";
+
+    if (!lastSaved) return "Not saved yet";
+
+    return `Last saved at ${lastSaved.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
   };
 
   if (isLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f7f6f2]">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#171716] text-sm font-bold text-white shadow-md">
+          <span className="flex h-9 w-9 items-center justify-center bg-[#171716] text-sm font-bold text-white">
             f.
           </span>
-          <span className="text-sm tracking-wide text-neutral-600 font-medium">
+          <span className="text-sm font-medium tracking-wide text-neutral-600">
             Loading Board...
           </span>
         </div>
@@ -90,17 +122,18 @@ function BoardView() {
   if (error || !board) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-[#f7f6f2] p-6 text-center">
-        <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-md max-w-md w-full">
+        <div className="w-full max-w-md border border-neutral-200 bg-white p-8">
           <h2 className="text-base font-bold text-neutral-900">
             {error || "Board Not Found"}
           </h2>
-          <p className="mt-1 text-xs text-neutral-500 leading-relaxed">
-            The requested board does not exist or you do not have permission to view it.
+          <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+            The requested board does not exist or you do not have
+            permission to view it.
           </p>
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="mt-5 rounded-xl bg-[#171716] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#d9786b] cursor-pointer"
+            className="mt-5 bg-[#171716] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#D9786B]"
           >
             Return to Dashboard
           </button>
@@ -111,14 +144,15 @@ function BoardView() {
 
   return (
     <div className="flex h-screen flex-col bg-[#f7f6f2] text-[#171716]">
-      <header className="z-20 flex h-14 shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-4 shadow-2xs gap-3">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+      <header className="z-20 flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-neutral-200 bg-white px-4">
+        {/* Left section */}
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Link
             to="/"
-            className="flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-neutral-950 shrink-0"
+            className="flex shrink-0 items-center gap-2 text-xs font-semibold text-neutral-600 transition-colors hover:text-[#D9786B]"
             title="Back to Dashboard"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-[#f7f6f2] text-xs shadow-2xs hover:border-neutral-900 transition-all">
+            <span className="flex h-8 w-8 items-center justify-center border border-neutral-200 bg-white text-sm transition-colors hover:border-[#D9786B] hover:text-[#D9786B]">
               ←
             </span>
             <span className="hidden md:inline">Dashboard</span>
@@ -137,7 +171,7 @@ function BoardView() {
 
           {isOwner ? (
             isEditingTitle ? (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <input
                   type="text"
                   value={titleInput}
@@ -145,18 +179,19 @@ function BoardView() {
                   onBlur={handleSaveTitle}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleSaveTitle();
+
                     if (e.key === "Escape") {
                       setTitleInput(board.title);
                       setIsEditingTitle(false);
                     }
                   }}
                   autoFocus
-                  className="rounded-md border border-neutral-900 px-2 py-0.5 text-xs sm:text-sm font-bold text-neutral-950 outline-none"
+                  className="w-32 border border-[#D9786B] bg-white px-2 py-1 text-xs font-bold text-neutral-950 outline-none sm:w-auto sm:text-sm"
                 />
                 <button
                   type="button"
                   onClick={handleSaveTitle}
-                  className="rounded-md bg-[#171716] px-2 py-0.5 text-xs text-white cursor-pointer"
+                  className="bg-[#171716] px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-[#D9786B]"
                 >
                   Save
                 </button>
@@ -165,7 +200,7 @@ function BoardView() {
               <button
                 type="button"
                 onClick={() => setIsEditingTitle(true)}
-                className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs sm:text-sm font-bold text-neutral-950 hover:bg-neutral-100 transition-colors truncate cursor-pointer"
+                className="flex min-w-0 items-center gap-1.5 px-1 py-1 text-xs font-bold text-neutral-950 transition-colors hover:text-[#D9786B] sm:text-sm"
                 title="Click to rename board"
               >
                 <span className="truncate">{board.title}</span>
@@ -173,15 +208,15 @@ function BoardView() {
               </button>
             )
           ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm font-bold text-neutral-950 truncate">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-xs font-bold text-neutral-950 sm:text-sm">
                 {board.title}
               </span>
               <span
-                className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
+                className={`px-1.5 py-0.5 text-[10px] font-medium ${
                   isViewer
                     ? "bg-neutral-100 text-neutral-600"
-                    : "bg-orange-100 text-orange-800"
+                    : "bg-[#D9786B]/10 text-[#B65C50]"
                 }`}
               >
                 {board.userRole}
@@ -190,120 +225,105 @@ function BoardView() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-neutral-50 border border-neutral-200 text-[11px] font-medium text-neutral-600">
+        {/* Right section */}
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          {/* Live status */}
+          <div className="flex items-center gap-2 pr-2 text-[11px] font-semibold uppercase tracking-wide">
             <span
               className={`h-2 w-2 rounded-full ${
                 collabState.connectionStatus === "connected"
-                  ? "bg-emerald-500 animate-pulse"
+                  ? "bg-[#D9786B]"
                   : collabState.connectionStatus === "reconnecting" ||
                     collabState.connectionStatus === "connecting"
-                  ? "bg-amber-500 animate-pulse"
+                  ? "bg-amber-500"
                   : "bg-neutral-400"
               }`}
             />
-            <span className="hidden md:inline">
+            <span className="text-neutral-700">
               {collabState.connectionStatus === "connected"
                 ? "Live"
                 : collabState.connectionStatus === "reconnecting"
-                ? "Reconnecting..."
+                ? "Reconnecting"
                 : collabState.connectionStatus === "connecting"
-                ? "Connecting..."
+                ? "Connecting"
                 : "Offline"}
             </span>
           </div>
 
-          {collabState.activeUsers.length > 0 && (
-            <div className="flex items-center -space-x-1.5 overflow-hidden">
-              {collabState.activeUsers.slice(0, 4).map((u) => (
-                <div
-                  key={u.userId}
-                  title={`${u.name} (${u.role || "collaborator"})`}
-                  style={{ backgroundColor: u.color || "#3b82f6" }}
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ring-white shadow-xs"
-                >
-                  {u.name?.charAt(0).toUpperCase() || "U"}
-                </div>
-              ))}
-              {collabState.activeUsers.length > 4 && (
-                <div
-                  title={`${collabState.activeUsers.length - 4} more online`}
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-200 text-[10px] font-semibold text-neutral-700 ring-2 ring-white"
-                >
-                  +{collabState.activeUsers.length - 4}
-                </div>
-              )}
-            </div>
-          )}
+          <span className="h-7 w-px bg-neutral-200" />
 
-          <button
-            type="button"
-            onClick={() => setIsShareOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 shadow-2xs hover:bg-neutral-50 cursor-pointer"
-          >
-            <span>Share</span>
-          </button>
-
+          {/* Last saved */}
           {!isViewer && (
-            <div className="hidden items-center gap-1.5 text-[11px] text-neutral-500 font-medium sm:flex">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  saveStatus === "saved"
-                    ? "bg-emerald-500"
-                    : saveStatus === "saving"
-                    ? "bg-blue-500"
-                    : saveStatus === "error"
-                    ? "bg-red-500"
-                    : "bg-amber-500"
-                }`}
-              />
-              <span>
-                {saveStatus === "saving"
-                  ? "Saving..."
+            <div
+              className={`whitespace-nowrap px-1 text-[11px] font-medium ${
+                saveStatus === "error"
+                  ? "text-red-500"
                   : saveStatus === "unsaved"
-                  ? "Unsaved changes"
-                  : saveStatus === "error"
-                  ? "Save failed"
-                  : `Saved ${
-                      lastSaved
-                        ? lastSaved.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : ""
-                    }`}
-              </span>
+                  ? "text-amber-600"
+                  : "text-neutral-500"
+              }`}
+            >
+              {formatLastSaved()}
             </div>
           )}
 
+          <span className="h-7 w-px bg-neutral-200" />
+
+          {/* Avatar and Share */}
+          <div className="flex items-center gap-2">
+            <div
+              title={board.user?.name || board.user?.email || "You"}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-[#D9786B] text-xs font-bold text-white"
+            >
+              {(board.user?.name || board.user?.email || "Y")
+                .charAt(0)
+                .toUpperCase()}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsShareOpen(true)}
+              className="border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 transition-colors hover:border-neutral-300 hover:bg-[#FBECE9] hover:text-[#AD5146]"
+            >
+              Share
+            </button>
+          </div>
+
+          <span className="h-7 w-px bg-neutral-200" />
+
+          {/* Save */}
           {!isViewer ? (
             <button
               type="button"
               onClick={() => canvasRef.current?.saveCanvas()}
               disabled={isSaving}
-              className="flex items-center gap-1.5 rounded-lg bg-[#171716] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#d9786b] disabled:opacity-60 cursor-pointer"
+              className="bg-[#171716] px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#D9786B] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? "Saving..." : "Save Canvas"}
             </button>
           ) : (
-            <span className="rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-600">
+            <span className="border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs font-medium text-neutral-600">
               Read Only
             </span>
           )}
         </div>
       </header>
 
+      {/* Canvas area */}
       <main className="relative flex-1 overflow-hidden bg-white">
         <div
           aria-hidden="true"
           className="absolute inset-0 opacity-[0.25] [background-image:linear-gradient(#171716_1px,transparent_1px),linear-gradient(90deg,#171716_1px,transparent_1px)] [background-size:24px_24px]"
         />
+
         <div className="relative z-10 h-full w-full">
           <CanvasEditor
             key={id}
             ref={canvasRef}
             boardId={id}
-            initialElements={Array.isArray(board.elements) ? board.elements : []}
+            initialElements={
+              Array.isArray(board.elements) ? board.elements : []
+            }
             initialAppState={
               board.appState && typeof board.appState === "object"
                 ? board.appState
@@ -314,12 +334,16 @@ function BoardView() {
             onSaveStatusChange={({ status, lastSaved, isSaving }) => {
               setSaveStatus(status);
               setIsSaving(isSaving);
-              if (lastSaved) setLastSaved(lastSaved);
+
+              if (lastSaved) {
+                setLastSaved(lastSaved);
+              }
             }}
           />
         </div>
       </main>
 
+      {/* Share dialog */}
       {isShareOpen && (
         <ShareDialog
           boardId={id}

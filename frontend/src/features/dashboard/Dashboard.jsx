@@ -1,9 +1,10 @@
+
 import { useEffect, useState, useMemo } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+
 import Navbar from "./components/Navbar";
 import WorkspaceSidebar from "./components/WorkspaceSidebar";
 import BoardCard from "./components/BoardCard";
-import RecentBoards from "./components/RecentBoards";
 import WorkspaceModal from "./components/WorkspaceModal";
 import BoardModal from "./components/BoardModal";
 import ConfirmModal from "./components/ConfirmModal";
@@ -13,7 +14,6 @@ function Dashboard() {
     workspaces,
     activeWorkspace,
     boards,
-    recentBoards,
     isLoadingWorkspaces,
     isLoadingBoards,
     error,
@@ -47,38 +47,45 @@ function Dashboard() {
     fetchWorkspaces();
   }, [fetchWorkspaces]);
 
+  // Filter and sort boards
   const filteredBoards = useMemo(() => {
     let result = [...boards];
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
+      const query = searchQuery.toLowerCase().trim();
+
       result = result.filter(
-        (b) =>
-          b.title.toLowerCase().includes(q) ||
-          (b.description && b.description.toLowerCase().includes(q))
+        (board) =>
+          board.title.toLowerCase().includes(query) ||
+          (board.description &&
+            board.description.toLowerCase().includes(query))
       );
     }
 
     if (activeTab === "starred") {
-      result = result.filter((b) => b.isFavorite);
+      result = result.filter((board) => board.isFavorite);
     }
 
     if (sortBy === "name") {
       result.sort((a, b) => a.title.localeCompare(b.title));
     } else {
-      result.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      result.sort(
+        (a, b) =>
+          new Date(b.updatedAt) - new Date(a.updatedAt)
+      );
     }
 
     return result;
   }, [boards, searchQuery, activeTab, sortBy]);
 
+  // Workspace actions
   const handleOpenCreateWorkspace = () => {
     setEditingWorkspace(null);
     setIsWorkspaceModalOpen(true);
   };
 
-  const handleOpenRenameWorkspace = (ws) => {
-    setEditingWorkspace(ws);
+  const handleOpenRenameWorkspace = (workspace) => {
+    setEditingWorkspace(workspace);
     setIsWorkspaceModalOpen(true);
   };
 
@@ -90,45 +97,45 @@ function Dashboard() {
     }
   };
 
+  // Board actions
   const handleOpenCreateBoard = () => {
-    if (!activeWorkspace) {
-      setIsWorkspaceModalOpen(true);
-      return;
-    }
+    if (!activeWorkspace) return;
+
     setEditingBoard(null);
     setIsBoardModalOpen(true);
   };
 
-  const handleOpenRenameBoard = (b) => {
-    setEditingBoard(b);
+  const handleOpenRenameBoard = (board) => {
+    setEditingBoard(board);
     setIsBoardModalOpen(true);
   };
 
   const handleSubmitBoard = async (data) => {
     if (editingBoard) {
       await updateBoard(editingBoard.id, data);
-    } else {
+    } else if (activeWorkspace) {
       await createBoard(activeWorkspace.id, data);
     }
   };
 
-  const totalStarredCount = boards.filter((b) => b.isFavorite).length;
-
   return (
     <div className="flex min-h-screen flex-col bg-[#f7f6f2] text-[#171716]">
+
+      {/* Navbar */}
       <Navbar
-        onOpenCreateWorkspace={handleOpenCreateWorkspace}
-        onOpenCreateBoard={handleOpenCreateBoard}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         isMobileSidebarOpen={isMobileSidebarOpen}
-        onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-        activeWorkspaceName={activeWorkspace?.name}
+        onToggleMobileSidebar={() =>
+          setIsMobileSidebarOpen(!isMobileSidebarOpen)
+        }
       />
 
+      {/* Error message */}
       {error && (
-        <div className="mx-4 mt-3 flex items-center justify-between rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-xs text-red-800 shadow-xs sm:mx-6">
+        <div className="mx-4 mt-3 flex items-center justify-between border border-red-300 bg-red-50 px-4 py-2.5 text-xs text-red-800 sm:mx-6">
           <span>{error}</span>
+
           <button
             type="button"
             onClick={clearError}
@@ -139,90 +146,100 @@ function Dashboard() {
         </div>
       )}
 
-      <div className="flex flex-1 w-full min-h-[calc(100vh-64px)]">
+      <div className="flex min-h-[calc(100vh-64px)] w-full flex-1">
+
+        {/* Workspace sidebar */}
         <WorkspaceSidebar
           workspaces={workspaces}
           activeWorkspace={activeWorkspace}
           onSelectWorkspace={selectWorkspace}
           onOpenCreateWorkspace={handleOpenCreateWorkspace}
           onOpenRenameWorkspace={handleOpenRenameWorkspace}
-          onOpenDeleteWorkspace={(ws) => setConfirmDeleteWorkspace(ws)}
+          onOpenDeleteWorkspace={(workspace) =>
+            setConfirmDeleteWorkspace(workspace)
+          }
           isLoading={isLoadingWorkspaces}
           isOpenMobile={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 bg-[#f7f6f2]">
-          {!searchQuery && recentBoards.length > 0 && (
-            <RecentBoards recentBoards={recentBoards} />
-          )}
+        {/* Main workspace */}
+        <main className="min-w-0 flex-1 bg-[#f7f6f2] p-4 sm:p-6 lg:p-8">
 
           {activeWorkspace ? (
             <div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-200/90 pb-5">
+
+              {/* Workspace heading */}
+              <div className="flex flex-col gap-3 border-b border-neutral-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
+
                 <div>
-                  <div className="flex items-center gap-2.5">
-                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900">
+                  {/* Dynamic coral underline */}
+                  <div className="inline-block">
+                    <h1 className="text-xl font-bold tracking-tight text-neutral-900 sm:text-2xl">
                       {activeWorkspace.name}
                     </h1>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenRenameWorkspace(activeWorkspace)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white hover:text-neutral-900 shadow-2xs"
-                      title="Rename"
-                    >
-                      ✎
-                    </button>
+
+                    <div className="mt-2 h-[2px] w-full bg-[#D9786B]/60" />
                   </div>
-                  <p className="mt-1 text-xs text-neutral-500 font-medium">
-                    {boards.length} {boards.length === 1 ? "whiteboard" : "whiteboards"} in workspace
+
+                  <p className="mt-2 text-xs font-medium text-neutral-500">
+                    {boards.length}{" "}
+                    {boards.length === 1
+                      ? "whiteboard"
+                      : "whiteboards"}{" "}
+                    in workspace
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateBoard}
-                    className="flex items-center gap-2 rounded-xl bg-[#171716] px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-[#d9786b] transition-all"
-                  >
-                    <span>+ New Board</span>
-                  </button>
-                </div>
+                {/* New Board */}
+                <button
+                  type="button"
+                  onClick={handleOpenCreateBoard}
+                  className="flex items-center justify-center gap-2 bg-[#171716] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#D9786B]"
+                >
+                  + New Board
+                </button>
               </div>
 
-              <div className="mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3">
-                <div className="inline-flex items-center rounded-xl border border-neutral-200 bg-white p-1 shadow-2xs self-start">
+              {/* Filters and sorting */}
+              <div className="mt-5 flex flex-col justify-between gap-3 pb-3 sm:flex-row sm:items-center">
+
+                <div className="inline-flex self-start border border-neutral-200 bg-white p-1">
+
                   <button
                     type="button"
                     onClick={() => setActiveTab("all")}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
                       activeTab === "all"
-                        ? "bg-[#171716] text-white shadow-xs"
-                        : "text-neutral-600 hover:text-neutral-950"
+                        ? "bg-[#D9786B] text-white"
+                        : "text-neutral-600 hover:text-[#D9786B]"
                     }`}
                   >
                     All Boards ({boards.length})
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setActiveTab("starred")}
-                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${
                       activeTab === "starred"
-                        ? "bg-[#171716] text-white shadow-xs"
-                        : "text-neutral-600 hover:text-neutral-950"
+                        ? "bg-[#D9786B] text-white"
+                        : "text-neutral-600 hover:text-[#D9786B]"
                     }`}
                   >
                     <span className="text-amber-500">★</span>
-                    <span>Starred ({totalStarredCount})</span>
+                    Starred ({boards.filter((b) => b.isFavorite).length})
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs text-neutral-500 self-end sm:self-auto">
+                {/* Sorting */}
+                <div className="flex items-center gap-2 self-end text-xs text-neutral-500 sm:self-auto">
                   <span className="font-medium">Sort by:</span>
+
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-800 shadow-2xs outline-none focus:border-neutral-900 cursor-pointer"
+                    className="border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-800 outline-none transition-colors focus:border-[#D9786B]"
                   >
                     <option value="recent">Recently Updated</option>
                     <option value="name">Alphabetical</option>
@@ -230,20 +247,28 @@ function Dashboard() {
                 </div>
               </div>
 
+              {/* Loading */}
               {isLoadingBoards ? (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-3">
+                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-52 rounded-2xl border border-neutral-200 bg-white p-4 shadow-2xs animate-pulse">
-                      <div className="h-32 rounded-xl bg-neutral-100" />
-                      <div className="mt-3.5 h-4 w-3/4 rounded-md bg-neutral-200" />
+                    <div
+                      key={i}
+                      className="h-52 animate-pulse border border-neutral-200 bg-white p-4"
+                    >
+                      <div className="h-32 bg-neutral-100" />
+                      <div className="mt-3.5 h-4 w-3/4 bg-neutral-200" />
                     </div>
                   ))}
                 </div>
               ) : filteredBoards.length === 0 ? (
-                <div className="mt-6 flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-white/80 px-6 py-16 text-center shadow-2xs">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs text-xl">
-                    ✏
+
+                /* Empty state */
+                <div className="mt-6 flex flex-col items-center justify-center border border-dashed border-neutral-300 bg-white/80 px-6 py-16 text-center">
+
+                  <div className="flex h-14 w-14 items-center justify-center bg-[#D9786B] text-xl font-black tracking-tight text-white">
+                    f.
                   </div>
+
                   <h3 className="mt-4 text-sm font-bold text-neutral-900">
                     {searchQuery
                       ? `No boards match "${searchQuery}"`
@@ -251,61 +276,61 @@ function Dashboard() {
                       ? "No starred boards yet"
                       : "No boards in this workspace"}
                   </h3>
-                  <p className="mt-1 text-xs text-neutral-500 max-w-sm">
+
+                  <p className="mt-1 max-w-sm text-xs text-neutral-500">
                     {searchQuery
                       ? "Try searching for a different keyword."
                       : activeTab === "starred"
-                      ? "Star your favorite boards to easily find them here."
-                      : "Create your first board to start drawing diagrams and ideas."}
+                      ? "Star your favorite boards to find them here."
+                      : "Create your first board to start drawing."}
                   </p>
-                  {!searchQuery && activeTab !== "starred" && (
-                    <button
-                      type="button"
-                      onClick={handleOpenCreateBoard}
-                      className="mt-5 rounded-xl bg-[#171716] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#d9786b] transition-all"
-                    >
-                      + Create First Board
-                    </button>
-                  )}
                 </div>
+
               ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-3">
+
+                /* Board grid */
+                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredBoards.map((board) => (
                     <BoardCard
                       key={board.id}
                       board={board}
                       onToggleFavorite={toggleFavorite}
                       onOpenRenameBoard={handleOpenRenameBoard}
-                      onOpenDeleteBoard={(b) => setConfirmDeleteBoard(b)}
+                      onOpenDeleteBoard={(b) =>
+                        setConfirmDeleteBoard(b)
+                      }
                     />
                   ))}
                 </div>
               )}
             </div>
           ) : (
-            <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-white/80 px-6 py-20 text-center shadow-xs">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#171716] text-white shadow-md text-2xl">
-                ✦
+
+            /* No workspace selected */
+            <div className="mt-8 flex flex-col items-center justify-center border border-dashed border-neutral-300 bg-white/80 px-6 py-20 text-center">
+
+              <div className="flex h-14 w-14 items-center justify-center bg-[#D9786B] text-xl font-black tracking-tight text-white">
+                f.
               </div>
-              <h2 className="mt-4 text-base sm:text-lg font-bold text-neutral-900">
+
+              <h2 className="mt-4 text-base font-bold text-neutral-900 sm:text-lg">
                 Welcome to Forma
               </h2>
-              <p className="mt-2 max-w-md text-xs sm:text-sm text-neutral-500">
+
+              <p className="mt-2 max-w-md text-xs text-neutral-500 sm:text-sm">
                 Workspaces help you organize boards by project or team.
-                Create your first workspace to start sketching.
+                Select a workspace to see your boards.
               </p>
-              <button
-                type="button"
-                onClick={handleOpenCreateWorkspace}
-                className="mt-6 rounded-xl bg-[#171716] px-5 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-[#d9786b] transition-all"
-              >
-                + Create Workspace
-              </button>
+
+              <p className="mt-4 text-xs font-medium text-neutral-500">
+                Use the New Workspace button in the sidebar to create one.
+              </p>
             </div>
           )}
         </main>
       </div>
 
+      {/* Workspace modal */}
       <WorkspaceModal
         isOpen={isWorkspaceModalOpen}
         onClose={() => setIsWorkspaceModalOpen(false)}
@@ -314,6 +339,7 @@ function Dashboard() {
         isEdit={!!editingWorkspace}
       />
 
+      {/* Board modal */}
       <BoardModal
         isOpen={isBoardModalOpen}
         onClose={() => setIsBoardModalOpen(false)}
@@ -326,6 +352,7 @@ function Dashboard() {
         isEdit={!!editingBoard}
       />
 
+      {/* Delete workspace confirmation */}
       <ConfirmModal
         isOpen={!!confirmDeleteWorkspace}
         onClose={() => setConfirmDeleteWorkspace(null)}
@@ -338,6 +365,7 @@ function Dashboard() {
         isDanger={true}
       />
 
+      {/* Delete board confirmation */}
       <ConfirmModal
         isOpen={!!confirmDeleteBoard}
         onClose={() => setConfirmDeleteBoard(null)}
