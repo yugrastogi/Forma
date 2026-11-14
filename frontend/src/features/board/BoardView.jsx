@@ -4,12 +4,13 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { boardService } from "../../services/boardService";
 import CanvasEditor from "../canvas/CanvasEditor";
 import ShareDialog from "../collaboration/components/ShareDialog";
+import { useAuthStore } from "../../stores/authStore";
 
 function BoardView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const canvasRef = useRef(null);
-
+  const user = useAuthStore((state) => state.user);
   const [board, setBoard] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -213,11 +214,10 @@ function BoardView() {
                 {board.title}
               </span>
               <span
-                className={`px-1.5 py-0.5 text-[10px] font-medium ${
-                  isViewer
+                className={`px-1.5 py-0.5 text-[10px] font-medium ${isViewer
                     ? "bg-neutral-100 text-neutral-600"
                     : "bg-[#D9786B]/10 text-[#B65C50]"
-                }`}
+                  }`}
               >
                 {board.userRole}
               </span>
@@ -230,23 +230,22 @@ function BoardView() {
           {/* Live status */}
           <div className="flex items-center gap-2 pr-2 text-[11px] font-semibold uppercase tracking-wide">
             <span
-              className={`h-2 w-2 rounded-full ${
-                collabState.connectionStatus === "connected"
+              className={`h-2 w-2 rounded-full ${collabState.connectionStatus === "connected"
                   ? "bg-[#D9786B]"
                   : collabState.connectionStatus === "reconnecting" ||
                     collabState.connectionStatus === "connecting"
-                  ? "bg-amber-500"
-                  : "bg-neutral-400"
-              }`}
+                    ? "bg-amber-500"
+                    : "bg-neutral-400"
+                }`}
             />
             <span className="text-neutral-700">
               {collabState.connectionStatus === "connected"
                 ? "Live"
                 : collabState.connectionStatus === "reconnecting"
-                ? "Reconnecting"
-                : collabState.connectionStatus === "connecting"
-                ? "Connecting"
-                : "Offline"}
+                  ? "Reconnecting"
+                  : collabState.connectionStatus === "connecting"
+                    ? "Connecting"
+                    : "Offline"}
             </span>
           </div>
 
@@ -255,13 +254,12 @@ function BoardView() {
           {/* Last saved */}
           {!isViewer && (
             <div
-              className={`whitespace-nowrap px-1 text-[11px] font-medium ${
-                saveStatus === "error"
+              className={`whitespace-nowrap px-1 text-[11px] font-medium ${saveStatus === "error"
                   ? "text-red-500"
                   : saveStatus === "unsaved"
-                  ? "text-amber-600"
-                  : "text-neutral-500"
-              }`}
+                    ? "text-amber-600"
+                    : "text-neutral-500"
+                }`}
             >
               {formatLastSaved()}
             </div>
@@ -272,10 +270,10 @@ function BoardView() {
           {/* Avatar and Share */}
           <div className="flex items-center gap-2">
             <div
-              title={board.user?.name || board.user?.email || "You"}
+              title={user?.name || user?.email || "You"}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-[#D9786B] text-xs font-bold text-white"
             >
-              {(board.user?.name || board.user?.email || "Y")
+              {(user?.name?.trim() || user?.email || "Y")
                 .charAt(0)
                 .toUpperCase()}
             </div>
