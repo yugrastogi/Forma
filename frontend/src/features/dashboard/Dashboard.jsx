@@ -47,7 +47,6 @@ function Dashboard() {
     fetchWorkspaces();
   }, [fetchWorkspaces]);
 
-  // Filter and sort boards
   const filteredBoards = useMemo(() => {
     let result = [...boards];
 
@@ -173,7 +172,6 @@ function Dashboard() {
               <div className="flex flex-col gap-3 border-b border-neutral-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
 
                 <div>
-                  {/* Dynamic coral underline */}
                   <div className="inline-block">
                     <h1 className="text-xl font-bold tracking-tight text-neutral-900 sm:text-2xl">
                       {activeWorkspace.name}
@@ -265,7 +263,7 @@ function Dashboard() {
                 /* Empty state */
                 <div className="mt-6 flex flex-col items-center justify-center border border-dashed border-neutral-300 bg-white/80 px-6 py-16 text-center">
 
-                  <div className="flex h-14 w-14 items-center justify-center bg-[#D9786B] text-xl font-black tracking-tight text-white">
+                  <div className="flex h-14 w-14 items-center justify-center bg-[#171716] text-xl font-black tracking-tight text-white">
                     f.
                   </div>
 
