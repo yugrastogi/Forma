@@ -2,6 +2,12 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import { useAuthStore } from "../../stores/authStore";
 
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.VITE_API_URL?.startsWith("http")
+    ? import.meta.env.VITE_API_URL
+    : "http://localhost:3000");
+
 export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemoteSceneUpdate }) {
   const { user } = useAuthStore();
   const [connectionStatus, setConnectionStatus] = useState("connecting");
@@ -14,21 +20,19 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
   const pendingCanvasEmitRef = useRef(null);
   const collaboratorsMapRef = useRef(new Map());
   const onRemoteSceneUpdateRef = useRef(onRemoteSceneUpdate);
+  const excalidrawAPIRef = useRef(excalidrawAPI);
 
   useEffect(() => {
     onRemoteSceneUpdateRef.current = onRemoteSceneUpdate;
+    excalidrawAPIRef.current = excalidrawAPI;
   });
 
   useEffect(() => {
-    if (!boardId || !user) return;
+    if (!boardId || !user?.id) return;
 
-    const socket = io(import.meta.env.VITE_SOCKET_URL || window.location.origin, {
-      path: "/socket.io",
+    const socket = io(SOCKET_URL, {
       withCredentials: true,
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
+      transports: ["websocket"],
     });
 
     socketRef.current = socket;
@@ -78,8 +82,8 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
             changed = true;
           }
         }
-        if (changed && excalidrawAPI) {
-          excalidrawAPI.updateScene({
+        if (changed && excalidrawAPIRef.current) {
+          excalidrawAPIRef.current.updateScene({
             collaborators: new Map(collaboratorsMapRef.current),
           });
         }
@@ -87,7 +91,7 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
     });
 
     socket.on("cursor-update", (data) => {
-      if (!excalidrawAPI || data.userId === user?.id) return;
+      if (!excalidrawAPIRef.current || data.userId === user.id) return;
 
       const userColor = data.color || "#3b82f6";
       collaboratorsMapRef.current.set(data.userId, {
@@ -103,13 +107,13 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
         },
       });
 
-      excalidrawAPI.updateScene({
+      excalidrawAPIRef.current.updateScene({
         collaborators: new Map(collaboratorsMapRef.current),
       });
     });
 
     socket.on("canvas-update", (data) => {
-      if (data.userId === user?.id || !data.elements) return;
+      if (data.userId === user.id || !data.elements) return;
 
       isRemoteUpdateRef.current = true;
       if (onRemoteSceneUpdateRef.current) {
@@ -121,11 +125,14 @@ export function useBoardCollaboration({ boardId, excalidrawAPI, userRole, onRemo
       if (pendingCanvasEmitRef.current) {
         clearTimeout(pendingCanvasEmitRef.current);
       }
-      socket.emit("leave-board", { boardId });
+      if (socket.connected) {
+        socket.emit("leave-board", { boardId });
+      }
+      socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [boardId, user, excalidrawAPI]);
+  }, [boardId, user?.id]);
 
   const broadcastCursor = useCallback(
     (x, y, button = "up") => {
