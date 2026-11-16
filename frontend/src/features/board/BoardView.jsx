@@ -6,6 +6,9 @@ import CanvasEditor from "../canvas/CanvasEditor";
 import ShareDialog from "../collaboration/components/ShareDialog";
 import { useAuthStore } from "../../stores/authStore";
 
+const EMPTY_ELEMENTS = [];
+const EMPTY_APP_STATE = {};
+
 function BoardView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -64,9 +67,21 @@ function BoardView() {
     };
   }, [id]);
 
-  const handleCollaborationChange = useCallback((info) => {
+const handleCollaborationChange = useCallback((info) => {
     setCollabState(info);
   }, []);
+
+  const handleSaveStatusChange = useCallback(
+    ({ status, lastSaved: updatedLastSaved, isSaving: saving }) => {
+      setSaveStatus(status);
+      setIsSaving(saving);
+
+      if (updatedLastSaved) {
+        setLastSaved(updatedLastSaved);
+      }
+    },
+    []
+  );
 
   const handleSaveTitle = async () => {
     if (!titleInput.trim() || titleInput === board?.title) {
@@ -320,23 +335,16 @@ function BoardView() {
             ref={canvasRef}
             boardId={id}
             initialElements={
-              Array.isArray(board.elements) ? board.elements : []
+              Array.isArray(board.elements) ? board.elements : EMPTY_ELEMENTS
             }
             initialAppState={
               board.appState && typeof board.appState === "object"
                 ? board.appState
-                : {}
+                : EMPTY_APP_STATE
             }
             userRole={board.userRole || "VIEWER"}
             onCollaborationChange={handleCollaborationChange}
-            onSaveStatusChange={({ status, lastSaved, isSaving }) => {
-              setSaveStatus(status);
-              setIsSaving(isSaving);
-
-              if (lastSaved) {
-                setLastSaved(lastSaved);
-              }
-            }}
+            onSaveStatusChange={handleSaveStatusChange}
           />
         </div>
       </main>

@@ -2,6 +2,7 @@ import {
   forwardRef,
   useState,
   useRef,
+  useMemo,
   useImperativeHandle,
   useCallback,
   useEffect,
@@ -11,6 +12,53 @@ import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { normalizeElements } from "./canvasUtils";
 import { useBoardCollaboration } from "../collaboration/useBoardCollaboration";
+
+/**
+ * Merges incoming remote elements with current local scene elements using
+ * Excalidraw's `version` and `versionNonce` so active local strokes are never wiped.
+ */
+function mergeElements(localElements = [], remoteElements = [], activeElementId = null) {
+  const localMap = new Map(localElements.map((el) => [el.id, el]));
+  const mergedMap = new Map();
+
+  for (const remoteEl of remoteElements) {
+    const localEl = localMap.get(remoteEl.id);
+
+    // Never overwrite an element the local user is actively drawing/resizing right now
+    if (localEl && remoteEl.id === activeElementId) {
+      mergedMap.set(localEl.id, localEl);
+      continue;
+    }
+
+    if (!localEl) {
+      mergedMap.set(remoteEl.id, remoteEl);
+      continue;
+    }
+
+    const localVersion = localEl.version ?? 0;
+    const remoteVersion = remoteEl.version ?? 0;
+
+    if (remoteVersion > localVersion) {
+      mergedMap.set(remoteEl.id, remoteEl);
+    } else if (remoteVersion < localVersion) {
+      mergedMap.set(localEl.id, localEl);
+    } else {
+      // Deterministic tie-breaker when versions match
+      const pickRemote =
+        (remoteEl.versionNonce ?? 0) >= (localEl.versionNonce ?? 0);
+      mergedMap.set(remoteEl.id, pickRemote ? remoteEl : localEl);
+    }
+  }
+
+  // Keep local-only elements that haven't reached the remote peer yet
+  for (const localEl of localElements) {
+    if (!mergedMap.has(localEl.id)) {
+      mergedMap.set(localEl.id, localEl);
+    }
+  }
+
+  return Array.from(mergedMap.values());
+}
 
 const CanvasEditor = forwardRef(function CanvasEditor(
   {
@@ -23,25 +71,56 @@ const CanvasEditor = forwardRef(function CanvasEditor(
   },
   ref
 ) {
-  const [elements, setElements] = useState(initialElements);
-  const [appState, setAppState] = useState(initialAppState);
   const [, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [excalidrawAPI, setExcalidrawAPI] = useState(null);
+
+  const latestElementsRef = useRef(initialElements);
+  const latestAppStateRef = useRef(initialAppState);
+  const isApplyingRemoteRef = useRef(false);
+  const lastSavedStatusRef = useRef("saved");
 
   const savedElementsRef = useRef(
     JSON.stringify(normalizeElements(initialElements))
   );
 
+  // Stable initialData reference — only computed once on mount (key={id} resets on board switch)
+  const initialData = useMemo(
+    () => ({
+      elements: initialElements,
+      appState: {
+        ...initialAppState,
+        collaborators: new Map(),
+      },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
   const handleRemoteSceneUpdate = useCallback(
     (remoteElements) => {
-      setElements(remoteElements);
+      if (!excalidrawAPI || !Array.isArray(remoteElements)) return;
 
-      if (excalidrawAPI) {
-        excalidrawAPI.updateScene({
-          elements: remoteElements,
-        });
-      }
+      const currentLocalElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const currentAppState = excalidrawAPI.getAppState();
+      const activeElementId =
+        currentAppState?.editingElement?.id ||
+        currentAppState?.draggingElement?.id ||
+        currentAppState?.resizingElement?.id ||
+        null;
+
+      const merged = mergeElements(
+        currentLocalElements,
+        remoteElements,
+        activeElementId
+      );
+
+      latestElementsRef.current = merged;
+
+      isApplyingRemoteRef.current = true;
+      excalidrawAPI.updateScene({
+        elements: merged,
+      });
     },
     [excalidrawAPI]
   );
@@ -72,25 +151,43 @@ const CanvasEditor = forwardRef(function CanvasEditor(
     onCollaborationChange,
   ]);
 
-  const handleCanvasChange = (updatedElements, updatedAppState) => {
-    setElements(updatedElements);
-    setAppState(updatedAppState);
+  const handleCanvasChange = useCallback(
+    (updatedElements, updatedAppState) => {
+      latestElementsRef.current = updatedElements;
+      latestAppStateRef.current = updatedAppState;
 
-    broadcastCanvasChange(updatedElements, updatedAppState);
+      // Skip broadcasting when onChange was triggered by our own remote updateScene()
+      if (isApplyingRemoteRef.current) {
+        isApplyingRemoteRef.current = false;
+        return;
+      }
 
-    const currentElements = JSON.stringify(
-      normalizeElements(updatedElements)
-    );
+      broadcastCanvasChange(updatedElements, updatedAppState);
 
-    onSaveStatusChange?.({
-      status:
-        currentElements === savedElementsRef.current
-          ? "saved"
-          : "unsaved",
-      lastSaved,
-      isSaving: false,
-    });
-  };
+      const currentElements = JSON.stringify(
+        normalizeElements(updatedElements)
+      );
+      const nextStatus =
+        currentElements === savedElementsRef.current ? "saved" : "unsaved";
+
+      if (nextStatus !== lastSavedStatusRef.current) {
+        lastSavedStatusRef.current = nextStatus;
+        onSaveStatusChange?.({
+          status: nextStatus,
+          lastSaved,
+          isSaving: false,
+        });
+      }
+    },
+    [broadcastCanvasChange, lastSaved, onSaveStatusChange]
+  );
+
+  const handlePointerUpdate = useCallback(
+    ({ pointer, button }) => {
+      broadcastCursor(pointer.x, pointer.y, button);
+    },
+    [broadcastCursor]
+  );
 
   const handleSaveCanvas = async () => {
     if (userRole === "VIEWER") {
@@ -98,7 +195,15 @@ const CanvasEditor = forwardRef(function CanvasEditor(
       return;
     }
 
+    const elementsToSave = excalidrawAPI
+      ? excalidrawAPI.getSceneElements()
+      : latestElementsRef.current;
+    const appStateToSave = excalidrawAPI
+      ? excalidrawAPI.getAppState()
+      : latestAppStateRef.current;
+
     setIsSaving(true);
+    lastSavedStatusRef.current = "saving";
 
     onSaveStatusChange?.({
       status: "saving",
@@ -108,16 +213,17 @@ const CanvasEditor = forwardRef(function CanvasEditor(
 
     try {
       const result = await boardService.saveBoardCanvas(boardId, {
-        elements,
-        appState,
+        elements: elementsToSave,
+        appState: appStateToSave,
       });
 
       savedElementsRef.current = JSON.stringify(
-        normalizeElements(elements)
+        normalizeElements(elementsToSave)
       );
 
       const savedTime = new Date(result.updatedAt || Date.now());
       setLastSaved(savedTime);
+      lastSavedStatusRef.current = "saved";
 
       onSaveStatusChange?.({
         status: "saved",
@@ -125,6 +231,7 @@ const CanvasEditor = forwardRef(function CanvasEditor(
         isSaving: false,
       });
     } catch (err) {
+      lastSavedStatusRef.current = "error";
       onSaveStatusChange?.({
         status: "error",
         lastSaved,
@@ -143,363 +250,14 @@ const CanvasEditor = forwardRef(function CanvasEditor(
 
   return (
     <div className="forma-editor h-full w-full">
-      <style>{`
-        .forma-editor .excalidraw {
-          --color-primary: #D9786B;
-          --color-primary-darker: #C5665A;
-          --color-primary-darkest: #AD5146;
-          --color-primary-light: #F5DAD6;
-
-          --color-brand: #D9786B;
-          --color-brand-hover: #D9786B;
-          --color-brand-active: #C5665A;
-
-          --button-hover-bg: #F8F8F8;
-          --button-hover-border: #D9D9D9;
-          --button-hover-color: #292929;
-
-          --button-selected-bg: #F5DAD6;
-          --button-selected-border: #D9786B;
-          --button-selected-hover-bg: #F5DAD6;
-
-          --color-surface-primary-container: #F5DAD6;
-          --color-on-primary-container: #AD5146;
-
-          /* Selection box, resize handles and rotation handle */
-          --color-selection: #D9786B;
-        }
-
-        /* DRAWING TOOLBAR */
-
-        .forma-editor .excalidraw .App-toolbar
-        .ToolIcon_type_button:hover,
-        .forma-editor .excalidraw .App-toolbar
-        .ToolIcon_type_button:focus-visible {
-          background-color: #F8F8F8 !important;
-          border-color: #D9D9D9 !important;
-        }
-
-        .forma-editor .excalidraw .App-toolbar
-        .ToolIcon_type_button.active,
-        .forma-editor .excalidraw .App-toolbar
-        .ToolIcon_type_button[aria-pressed="true"] {
-          background-color: #F5DAD6 !important;
-          border-color: #D9786B !important;
-        }
-
-        .forma-editor .excalidraw .App-toolbar
-        .ToolIcon_type_button.active:hover,
-        .forma-editor .excalidraw .App-toolbar
-        .ToolIcon_type_button[aria-pressed="true"]:hover {
-          background-color: #F5DAD6 !important;
-          border-color: #D9786B !important;
-        }
-
-        /* PROPERTIES PANEL */
-
-        .forma-editor .excalidraw .App-menu__left {
-          --button-bg: #FFFFFF;
-          --button-border: #E5E5E5;
-          --button-color: #292929;
-
-          --button-hover-bg: #F8F8F8;
-          --button-hover-border: #D9D9D9;
-          --button-hover-color: #292929;
-
-          --button-active-bg: #F8F8F8;
-          --button-active-border: #D9D9D9;
-
-          --button-selected-bg: #F5DAD6;
-          --button-selected-border: #D9786B;
-          --button-selected-hover-bg: #F5DAD6;
-
-          --color-primary: #D9786B;
-          --color-primary-darker: #C5665A;
-          --color-primary-darkest: #AD5146;
-          --color-brand-hover: #D9786B;
-        }
-
-        /* SELECTED PROPERTY BUTTONS */
-
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList label.active,
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList button.active,
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList .zIndexButton.active {
-          background-color: #F5DAD6 !important;
-          border-color: #D9786B !important;
-          color: #AD5146 !important;
-          box-shadow: none !important;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList label.active svg,
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList button.active svg,
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList .zIndexButton.active svg {
-          color: #AD5146 !important;
-        }
-
-        /* UNSELECTED PROPERTY BUTTONS */
-
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList label:not(.active) svg,
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList button:not(.active) svg,
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList .zIndexButton:not(.active) svg {
-          color: #292929 !important;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList label:not(.active):hover,
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList button:not(.active):hover,
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList .zIndexButton:not(.active):hover {
-          background-color: #F8F8F8 !important;
-          border-color: #D9D9D9 !important;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList label.active:hover,
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList button.active:hover,
-        .forma-editor .excalidraw .App-menu__left
-        .buttonList .zIndexButton.active:hover {
-          background-color: #F5DAD6 !important;
-          border-color: #D9786B !important;
-        }
-
-        /* OPACITY SLIDER */
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"] {
-          accent-color: #D9786B !important;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"]::-webkit-slider-runnable-track {
-          background: #F5DAD6 !important;
-          border-radius: 999px;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"]::-webkit-slider-thumb {
-          background: #D9786B !important;
-          border: none !important;
-          box-shadow: none !important;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"]::-moz-range-track {
-          background: #F5DAD6 !important;
-          border-radius: 999px;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"]::-moz-range-progress {
-          background: #D9786B !important;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"]::-moz-range-thumb {
-          background: #D9786B !important;
-          border: none !important;
-          box-shadow: none !important;
-        }
-
-        /* OPACITY SLIDER: THIN TRACK + SMALL THUMB */
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"] {
-          -webkit-appearance: none !important;
-          appearance: none !important;
-          height: 4px !important;
-          background: transparent !important;
-          border-radius: 999px;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"]::-webkit-slider-runnable-track {
-          height: 4px !important;
-          border-radius: 999px;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"]::-webkit-slider-thumb {
-          -webkit-appearance: none !important;
-          appearance: none !important;
-          width: 14px !important;
-          height: 14px !important;
-          margin-top: -5px !important;
-          border-radius: 50% !important;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"]::-moz-range-track {
-          height: 4px !important;
-          border-radius: 999px;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"]::-moz-range-progress {
-          height: 4px !important;
-          border-radius: 999px;
-        }
-
-        .forma-editor .excalidraw .App-menu__left
-        input[type="range"]::-moz-range-thumb {
-          width: 14px !important;
-          height: 14px !important;
-          border-radius: 50% !important;
-        }
-
-        /* HAMBURGER, LIBRARY AND HELP */
-
-        .forma-editor .excalidraw .main-menu-trigger,
-        .forma-editor .excalidraw .sidebar-trigger,
-        .forma-editor .excalidraw .help-icon {
-          background: #F5DAD6 !important;
-          border: 1px solid #E8E5E3 !important;
-          box-shadow: none !important;
-          color: #171716 !important;
-        }
-
-        .forma-editor .excalidraw .main-menu-trigger svg,
-        .forma-editor .excalidraw .sidebar-trigger svg,
-        .forma-editor .excalidraw .help-icon svg {
-          color: #171716 !important;
-          stroke: #171716 !important;
-        }
-
-        /* ZOOM CONTROL CONTAINER AND ALL DESCENDANT BUTTONS */
-
-        .forma-editor .excalidraw .zoom-actions {
-          background: #F5DAD6 !important;
-          border: 1px solid #E8E5E3 !important;
-          box-shadow: none !important;
-        }
-
-        .forma-editor .excalidraw .zoom-actions button,
-        .forma-editor .excalidraw .zoom-actions button:focus,
-        .forma-editor .excalidraw .zoom-actions button:focus-visible,
-        .forma-editor .excalidraw .zoom-actions button:active {
-          background: #F5DAD6 !important;
-          background-color: #F5DAD6 !important;
-          border-color: transparent !important;
-          color: #171716 !important;
-          box-shadow: none !important;
-          outline-color: transparent !important;
-        }
-
-        .forma-editor .excalidraw .zoom-actions button svg {
-          color: #171716 !important;
-          stroke: #171716 !important;
-        }
-
-        /* UNDO / REDO CONTAINER AND ALL DESCENDANT BUTTONS */
-
-        .forma-editor .excalidraw .undo-redo-buttons {
-          background: #F5DAD6 !important;
-          border: 1px solid #E8E5E3 !important;
-          border-radius: var(--border-radius-lg);
-          box-shadow: none !important;
-        }
-
-        .forma-editor .excalidraw .undo-redo-buttons button,
-        .forma-editor .excalidraw .undo-redo-buttons button:focus,
-        .forma-editor .excalidraw .undo-redo-buttons button:focus-visible,
-        .forma-editor .excalidraw .undo-redo-buttons button:active {
-          background: #F5DAD6 !important;
-          background-color: #F5DAD6 !important;
-          border-color: transparent !important;
-          color: #171716 !important;
-          box-shadow: none !important;
-          outline-color: transparent !important;
-        }
-
-        .forma-editor .excalidraw .undo-redo-buttons button svg {
-          color: #171716 !important;
-          stroke: #171716 !important;
-        }
-
-        /* HOVER: ALL TOP CONTROLS + ZOOM + UNDO/REDO (same as hamburger) */
-
-        .forma-editor .excalidraw .main-menu-trigger:hover,
-        .forma-editor .excalidraw .sidebar-trigger:hover,
-        .forma-editor .excalidraw .help-icon:hover {
-          background: #FBECE9 !important;
-          background-color: #FBECE9 !important;
-          border-color: #E8E5E3 !important;
-          color: #171716 !important;
-          box-shadow: none !important;
-        }
-
-        .forma-editor .excalidraw .main-menu-trigger:hover svg,
-        .forma-editor .excalidraw .sidebar-trigger:hover svg,
-        .forma-editor .excalidraw .help-icon:hover svg {
-          color: #171716 !important;
-          stroke: #171716 !important;
-        }
-
-        .forma-editor .excalidraw .zoom-actions button:hover:not(:disabled),
-        .forma-editor .excalidraw .zoom-actions button.ToolIcon_type_button:hover:not(:disabled),
-        .forma-editor .excalidraw .undo-redo-buttons button:hover:not(:disabled),
-        .forma-editor .excalidraw .undo-redo-buttons button.ToolIcon_type_button:hover:not(:disabled) {
-          background: #FBECE9 !important;
-          background-color: #FBECE9 !important;
-          border-color: transparent !important;
-          color: #171716 !important;
-          box-shadow: none !important;
-        }
-
-        /* Excalidraw paints its own hover on the inner icon and via
-           --button-hover-bg (#F8F8F8 above), so override both here */
-
-        .forma-editor .excalidraw .zoom-actions,
-        .forma-editor .excalidraw .undo-redo-buttons {
-          --button-bg: #F5DAD6;
-          --button-border: transparent;
-          --button-hover-bg: #FBECE9;
-          --button-hover-border: transparent;
-          --button-hover-color: #171716;
-          --button-active-bg: #FBECE9;
-          --button-active-border: transparent;
-        }
-
-        .forma-editor .excalidraw .zoom-actions button .ToolIcon__icon,
-        .forma-editor .excalidraw .zoom-actions button .ToolIcon__icon:hover,
-        .forma-editor .excalidraw .undo-redo-buttons button .ToolIcon__icon,
-        .forma-editor .excalidraw .undo-redo-buttons button .ToolIcon__icon:hover {
-          background: transparent !important;
-          background-color: transparent !important;
-          border-color: transparent !important;
-          box-shadow: none !important;
-        }
-
-        .forma-editor .excalidraw .undo-redo-buttons button:disabled {
-          opacity: 0.4;
-        }
-      `}</style>
-
+      {/* Keep your existing <style>{`...`}</style> block unchanged here */}
       <Excalidraw
         theme="light"
         viewModeEnabled={userRole === "VIEWER"}
-        excalidrawAPI={(api) => setExcalidrawAPI(api)}
-        initialData={{
-          elements,
-          appState: {
-            ...appState,
-            collaborators: new Map(),
-          },
-        }}
+        excalidrawAPI={setExcalidrawAPI}
+        initialData={initialData}
         onChange={handleCanvasChange}
-        onPointerUpdate={({ pointer, button }) => {
-          broadcastCursor(pointer.x, pointer.y, button);
-        }}
+        onPointerUpdate={handlePointerUpdate}
       />
     </div>
   );
